@@ -879,7 +879,7 @@ prop_demux_sdu a = do
         let (!frag, !rest) = BL.splitAt 0xffff payload
             sdu' = MuxSDU (RemoteClockModel 0)
                           (MiniProtocolNum 2)
-                           ModeInitiator
+                          InitiatorDir
                           (fromIntegral $ BL.length frag) frag
             !pkt = encodeMuxSDU (sdu' :: MuxSDU)
 
@@ -891,7 +891,7 @@ prop_demux_sdu a = do
     {- Not yet! setup state q | state /= Larval && state /= Connected = do
         let msg = MsgInitReq [version0]
             blob = toLazyByteString $ encodeControlMsg msg
-            pkt = MuxSDU (RemoteClockModel 0) Muxcontrol ModeInitiator
+            pkt = MuxSDU (RemoteClockModel 0) Muxcontrol InitiatorDir
                             (fromIntegral $ BL.length blob) blob
         atomically $ writeTBQueue q $ encodeMuxSDU (pkt :: MuxSDU)
         return () -}

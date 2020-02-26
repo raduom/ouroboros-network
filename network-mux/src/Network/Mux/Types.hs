@@ -7,7 +7,7 @@
 module Network.Mux.Types (
       MiniProtocolLimits (..)
     , MiniProtocolNum (..)
-    , MiniProtocolMode (..)
+    , MiniProtocolDir (..)
 
     , AppType (..)
     , HasInitiator
@@ -123,13 +123,13 @@ data RunMiniProtocol (appType :: AppType) m a b where
     -- Initiator application; most simple application will be @'runPeer'@ or
     -- @'runPipelinedPeer'@ supplied with a codec and a @'Peer'@ for each
     -- @ptcl@.  But it allows to handle resources if just application of
-    -- @'runPeer'@ is not enough.  It will be run as @'ModeInitiator'@.
+    -- @'runPeer'@ is not enough.  It will be run as @'InitiatorDir'@.
     :: (Channel m -> m a)
     -> RunMiniProtocol InitiatorApp m a Void
 
   ResponderProtocolOnly
     -- Responder application; similarly to the @'MuxInitiatorApplication'@ but it
-    -- will be run using @'ModeResponder'@.
+    -- will be run using @'ResponderDir'@.
     :: (Channel m -> m b)
     -> RunMiniProtocol ResponderApp m Void b
 
@@ -147,13 +147,13 @@ data RunMiniProtocol (appType :: AppType) m a b where
 newtype MiniProtocolIx = MiniProtocolIx Int
   deriving (Eq, Ord, Num, Enum, Ix, Show)
 
-data MiniProtocolMode = ModeInitiator | ModeResponder
+data MiniProtocolDir = InitiatorDir | ResponderDir
   deriving (Eq, Ord, Ix, Enum, Bounded, Show)
 
 data MuxSDU = MuxSDU {
       msTimestamp :: !RemoteClockModel
     , msNum       :: !MiniProtocolNum
-    , msMode      :: !MiniProtocolMode
+    , msDir       :: !MiniProtocolDir
     , msLength    :: !Word16
     , msBlob      :: !BL.ByteString
     }
@@ -177,14 +177,14 @@ data MuxBearer m = MuxBearer {
 
 
 -- | A channel which wraps each message as an 'MuxSDU' using giving
--- 'MiniProtocolNum' and 'MiniProtocolMode'.
+-- 'MiniProtocolNum' and 'MiniProtocolDir'.
 --
 muxBearerAsChannel
   :: MuxBearer IO
   -> MiniProtocolNum
-  -> MiniProtocolMode
+  -> MiniProtocolDir
   -> Channel IO
-muxBearerAsChannel bearer protocolNum mode =
+muxBearerAsChannel bearer ptclNum ptclDir =
       Channel {
         send = \blob -> void $ write bearer (wrap blob),
         recv = Just . msBlob . fst <$> read bearer
@@ -195,8 +195,8 @@ muxBearerAsChannel bearer protocolNum mode =
       wrap blob = MuxSDU {
             -- it will be filled when the 'MuxSDU' is send by the 'bearer'
             msTimestamp = RemoteClockModel 0,
-            msNum  = protocolNum,
-            msMode = mode,
+            msNum  = ptclNum,
+            msDir  = ptclDir,
             msLength = fromIntegral $ BL.length blob,
             msBlob = blob
           }

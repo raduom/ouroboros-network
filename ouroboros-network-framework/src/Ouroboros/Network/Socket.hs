@@ -231,7 +231,7 @@ connectToNode' sn versionDataCodec NetworkConnectTracers {nctMuxTracer, nctHands
               codecHandshake
               byteLimitsHandshake
               timeLimitsHandshake
-              (fromChannel (Mx.muxBearerAsChannel bearer handshakeProtocolNum Mx.ModeInitiator))
+              (fromChannel (Mx.muxBearerAsChannel bearer handshakeProtocolNum Mx.InitiatorDir))
               (handshakeClientPeer versionDataCodec versions)
     ts_end <- getMonotonicTime
 
@@ -343,7 +343,7 @@ beginConnection sn muxTracer handshakeTracer versionDataCodec acceptVersion fn t
                 codecHandshake
                 byteLimitsHandshake
                 timeLimitsHandshake
-                (fromChannel (Mx.muxBearerAsChannel bearer handshakeProtocolNum Mx.ModeResponder))
+                (fromChannel (Mx.muxBearerAsChannel bearer handshakeProtocolNum Mx.ResponderDir))
                 (handshakeServerPeer versionDataCodec acceptVersion versions)
         case mapp of
           Left (errDrv :: ProtocolLimitFailure) -> do

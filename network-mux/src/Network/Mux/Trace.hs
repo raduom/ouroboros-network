@@ -128,8 +128,8 @@ data MuxTrace =
     | MuxTraceSendStart MuxSDU
     | MuxTraceSendEnd
     | MuxTraceState MuxBearerState
-    | MuxTraceCleanExit MiniProtocolNum MiniProtocolMode
-    | MuxTraceExceptionExit MiniProtocolNum MiniProtocolMode SomeException
+    | MuxTraceCleanExit MiniProtocolNum MiniProtocolDir
+    | MuxTraceExceptionExit MiniProtocolNum MiniProtocolDir SomeException
     | MuxTraceChannelRecvStart MiniProtocolNum
     | MuxTraceChannelRecvEnd MiniProtocolNum BL.ByteString
     | MuxTraceChannelSendStart MiniProtocolNum BL.ByteString
@@ -145,7 +145,7 @@ instance Show MuxTrace where
     show (MuxTraceRecvHeaderEnd sdu) = printf "Bearer Receive Header End: ts: 0x%08x %s %s len %d"
         (unRemoteClockModel $ msTimestamp sdu)
         (show $ msNum sdu)
-        (show $ msMode sdu)
+        (show $ msDir sdu)
         (msLength sdu)
     show (MuxTraceRecvPayloadStart len) = printf "Bearer Receive Body Start: length %d" len
     show (MuxTraceRecvPayloadEnd blob) = printf "Bearer Receive Body End: length %d" (BL.length blob)
@@ -160,7 +160,7 @@ instance Show MuxTrace where
     show (MuxTraceSendStart sdu) = printf "Bearer Send Start: ts: 0x%08x %s %s length %d"
         (unRemoteClockModel $ msTimestamp sdu)
         (show $ msNum sdu)
-        (show $ msMode sdu)
+        (show $ msDir sdu)
         (BL.length $ msBlob sdu)
     show MuxTraceSendEnd = printf "Bearer Send End"
     show (MuxTraceState new) = printf "State: %s" (show new)

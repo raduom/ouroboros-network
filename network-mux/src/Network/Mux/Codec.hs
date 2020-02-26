@@ -31,12 +31,12 @@ encodeMuxSDU sdu =
   where
     enc = do
         Bin.putWord32be $ unRemoteClockModel $ msTimestamp sdu
-        Bin.putWord16be $ putNumAndMode (msNum sdu) (msMode sdu)
+        Bin.putWord16be $ putNumAndMode (msNum sdu) (msDir sdu)
         Bin.putWord16be $ fromIntegral $ BL.length $ msBlob sdu
 
-    putNumAndMode :: MiniProtocolNum -> MiniProtocolMode -> Word16
-    putNumAndMode (MiniProtocolNum n) ModeInitiator = n
-    putNumAndMode (MiniProtocolNum n) ModeResponder = n .|. 0x8000
+    putNumAndMode :: MiniProtocolNum -> MiniProtocolDir -> Word16
+    putNumAndMode (MiniProtocolNum n) InitiatorDir = n
+    putNumAndMode (MiniProtocolNum n) ResponderDir = n .|. 0x8000
 
 
 -- | Decode a 'MuSDU' header.  A left inverse of 'encodeMuxSDU'.
@@ -47,15 +47,16 @@ decodeMuxSDU buf =
     case Bin.runGetOrFail dec buf of
          Left  (_, _, e)  -> Left $ MuxError MuxDecodeError e callStack
          Right (_, _, ph) ->
-             let mode = getMode $ mshNumAndMode ph
-                 num  = MiniProtocolNum (mshNumAndMode ph .&. 0x7fff) in
              Right $ MuxSDU {
                    msTimestamp = mshTimestamp ph
-                 , msNum  = num
-                 , msMode = mode
+                 , msNum    = num
+                 , msDir    = dir
                  , msLength = mshLength ph
                  , msBlob = BL.empty
                  }
+           where
+             dir = getDir (mshNumAndDir ph)
+             num = MiniProtocolNum (mshNumAndDir ph .&. 0x7fff)
   where
     dec = do
         ts <- Bin.getWord32be
@@ -63,13 +64,13 @@ decodeMuxSDU buf =
         len <- Bin.getWord16be
         return $ MuxSDUHeader (RemoteClockModel ts) mid len
 
-    getMode mid =
-        if mid .&. 0x8000 == 0 then ModeInitiator
-                               else ModeResponder
+    getDir mid
+      | mid .&. 0x8000 == 0 = InitiatorDir
+      | otherwise           = ResponderDir
 
 data MuxSDUHeader = MuxSDUHeader {
       mshTimestamp  :: !RemoteClockModel
-    , mshNumAndMode :: !Word16
+    , mshNumAndDir  :: !Word16
     , mshLength     :: !Word16
     }
 
