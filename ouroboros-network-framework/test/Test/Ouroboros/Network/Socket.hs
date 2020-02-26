@@ -192,7 +192,7 @@ prop_socket_send_recv initiatorAddr responderAddr f xs =
     siblingVar <- newTVarM 2
 
     let -- Server Node; only req-resp server
-        responderApp :: OuroborosApplication ResponderApp BL.ByteString IO Void ()
+        responderApp :: OuroborosApplication ResponderMode BL.ByteString IO Void ()
         responderApp = testProtocols2 reqRespResponder
 
         reqRespResponder =
@@ -209,7 +209,7 @@ prop_socket_send_recv initiatorAddr responderAddr f xs =
             waitSibling siblingVar
 
         -- Client Node; only req-resp client
-        initiatorApp :: OuroborosApplication InitiatorApp BL.ByteString IO () Void
+        initiatorApp :: OuroborosApplication InitiatorMode BL.ByteString IO () Void
         initiatorApp = testProtocols2 reqRespInitiator
 
         reqRespInitiator =
@@ -275,7 +275,7 @@ prop_socket_recv_close f _ =
 
     sv   <- newEmptyTMVarM
 
-    let app :: OuroborosApplication ResponderApp BL.ByteString IO Void ()
+    let app :: OuroborosApplication ResponderMode BL.ByteString IO Void ()
         app = testProtocols2 reqRespResponder
 
         reqRespResponder =
@@ -346,7 +346,7 @@ prop_socket_client_connect_error _ xs =
 
     cv <- newEmptyTMVarM
 
-    let app :: OuroborosApplication InitiatorApp BL.ByteString IO () Void
+    let app :: OuroborosApplication InitiatorMode BL.ByteString IO () Void
         app = testProtocols2 reqRespInitiator
 
         reqRespInitiator =

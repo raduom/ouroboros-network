@@ -107,7 +107,7 @@ clientPingPong pipelined =
       Nothing
       defaultLocalSocketAddr
   where
-    app :: OuroborosApplication InitiatorApp LBS.ByteString IO () Void
+    app :: OuroborosApplication InitiatorMode LBS.ByteString IO () Void
     app = demoProtocol0 pingPongInitiator
 
     pingPongInitiator | pipelined =
@@ -146,7 +146,7 @@ serverPingPong =
       $ \_ serverAsync ->
         wait serverAsync   -- block until async exception
   where
-    app :: OuroborosApplication ResponderApp LBS.ByteString IO Void ()
+    app :: OuroborosApplication ResponderMode LBS.ByteString IO Void ()
     app = demoProtocol0 pingPongResponder
 
     pingPongResponder =
@@ -199,7 +199,7 @@ clientPingPong2 =
       Nothing
       defaultLocalSocketAddr
   where
-    app :: OuroborosApplication InitiatorApp LBS.ByteString IO  () Void
+    app :: OuroborosApplication InitiatorMode LBS.ByteString IO  () Void
     app = demoProtocol1 pingpong pingpong'
 
     pingpong =
@@ -251,7 +251,7 @@ serverPingPong2 =
       $ \_ serverAsync ->
         wait serverAsync   -- block until async exception
   where
-    app :: OuroborosApplication ResponderApp LBS.ByteString IO Void ()
+    app :: OuroborosApplication ResponderMode LBS.ByteString IO Void ()
     app = demoProtocol1 pingpong pingpong'
 
     pingpong =

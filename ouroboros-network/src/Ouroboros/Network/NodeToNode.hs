@@ -236,7 +236,7 @@ connectTo
   -> Versions NodeToNodeVersion
               DictVersion
               (ConnectionId Socket.SockAddr ->
-                 OuroborosApplication InitiatorApp BL.ByteString IO a b)
+                 OuroborosApplication InitiatorMode BL.ByteString IO a b)
   -> Maybe Socket.SockAddr
   -> Socket.SockAddr
   -> IO ()
@@ -251,7 +251,7 @@ connectTo_V1
   -> NetworkConnectTracers Socket.SockAddr NodeToNodeVersion
   -> NodeToNodeVersionData
   -> (ConnectionId Socket.SockAddr ->
-        OuroborosApplication InitiatorApp BL.ByteString IO a b)
+        OuroborosApplication InitiatorMode BL.ByteString IO a b)
   -> Maybe Socket.SockAddr
   -> Socket.SockAddr
   -> IO ()
@@ -276,14 +276,14 @@ connectTo_V1 sn tracers versionData application localAddr remoteAddr =
 --   will be cancelled as well (by 'withAsync')
 --
 withServer
-  :: ( HasResponder appType ~ True )
+  :: ( HasResponder mode ~ True )
   => SocketSnocket
   -> NetworkServerTracers Socket.SockAddr NodeToNodeVersion
   -> NetworkMutableState Socket.SockAddr
   -> Socket.SockAddr
   -> Versions NodeToNodeVersion DictVersion
               (ConnectionId Socket.SockAddr ->
-                 OuroborosApplication appType BL.ByteString IO a b)
+                 OuroborosApplication mode BL.ByteString IO a b)
   -> ErrorPolicies
   -> IO Void
 withServer sn tracers networkState addr versions errPolicies =
@@ -302,14 +302,14 @@ withServer sn tracers networkState addr versions errPolicies =
 -- | Like 'withServer' but specific to 'NodeToNodeV_1'.
 --
 withServer_V1
-  :: ( HasResponder appType ~ True )
+  :: ( HasResponder mode ~ True )
   => SocketSnocket
   -> NetworkServerTracers Socket.SockAddr NodeToNodeVersion
   -> NetworkMutableState Socket.SockAddr
   -> Socket.SockAddr
   -> NodeToNodeVersionData
   -> (ConnectionId Socket.SockAddr ->
-        OuroborosApplication appType BL.ByteString IO x y)
+        OuroborosApplication mode BL.ByteString IO x y)
   -> ErrorPolicies
   -> IO Void
 withServer_V1 sn tracers networkState addr versionData application =
@@ -326,8 +326,8 @@ withServer_V1 sn tracers networkState addr versionData application =
 -- established connection.
 --
 ipSubscriptionWorker
-    :: forall appType x y.
-       ( HasInitiator appType ~ True )
+    :: forall mode x y.
+       ( HasInitiator mode ~ True )
     => SocketSnocket
     -> NetworkIPSubscriptionTracers Socket.SockAddr NodeToNodeVersion
     -> NetworkMutableState Socket.SockAddr
@@ -336,7 +336,7 @@ ipSubscriptionWorker
         NodeToNodeVersion
         DictVersion
         (ConnectionId Socket.SockAddr ->
-           OuroborosApplication appType BL.ByteString IO x y)
+           OuroborosApplication mode BL.ByteString IO x y)
     -> IO Void
 ipSubscriptionWorker
   sn
@@ -365,15 +365,15 @@ ipSubscriptionWorker
 -- | Like 'ipSubscriptionWorker' but specific to 'NodeToNodeV_1'.
 --
 ipSubscriptionWorker_V1
-    :: forall appType x y.
-       ( HasInitiator appType ~ True )
+    :: forall mode x y.
+       ( HasInitiator mode ~ True )
     => SocketSnocket
     -> NetworkIPSubscriptionTracers Socket.SockAddr NodeToNodeVersion
     -> NetworkMutableState Socket.SockAddr
     -> IPSubscriptionParams ()
     -> NodeToNodeVersionData
     -> (ConnectionId Socket.SockAddr ->
-          OuroborosApplication appType BL.ByteString IO x y)
+          OuroborosApplication mode BL.ByteString IO x y)
     -> IO Void
 ipSubscriptionWorker_V1
   sn
@@ -398,8 +398,8 @@ ipSubscriptionWorker_V1
 -- established connection.
 --
 dnsSubscriptionWorker
-    :: forall appType x y.
-       ( HasInitiator appType ~ True )
+    :: forall mode x y.
+       ( HasInitiator mode ~ True )
     => SocketSnocket
     -> NetworkDNSSubscriptionTracers NodeToNodeVersion Socket.SockAddr
     -> NetworkMutableState Socket.SockAddr
@@ -408,7 +408,7 @@ dnsSubscriptionWorker
         NodeToNodeVersion
         DictVersion
         (ConnectionId Socket.SockAddr ->
-           OuroborosApplication appType BL.ByteString IO x y)
+           OuroborosApplication mode BL.ByteString IO x y)
     -> IO Void
 dnsSubscriptionWorker
   sn
@@ -439,15 +439,15 @@ dnsSubscriptionWorker
 -- | Like 'dnsSubscriptionWorker' but specific to 'NodeToNodeV_1'.
 --
 dnsSubscriptionWorker_V1
-    :: forall appType x y.
-       ( HasInitiator appType ~ True )
+    :: forall mode x y.
+       ( HasInitiator mode ~ True )
     => SocketSnocket
     -> NetworkDNSSubscriptionTracers NodeToNodeVersion Socket.SockAddr
     -> NetworkMutableState Socket.SockAddr
     -> DnsSubscriptionParams ()
     -> NodeToNodeVersionData
     -> (ConnectionId Socket.SockAddr ->
-          OuroborosApplication appType BL.ByteString IO x y)
+          OuroborosApplication mode BL.ByteString IO x y)
     -> IO Void
 dnsSubscriptionWorker_V1
   sn

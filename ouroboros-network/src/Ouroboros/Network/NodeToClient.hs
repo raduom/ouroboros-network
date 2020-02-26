@@ -204,7 +204,7 @@ connectTo
   -> Versions NodeToClientVersion
               DictVersion
               (ConnectionId LocalAddress ->
-                 OuroborosApplication InitiatorApp BL.ByteString IO a b)
+                 OuroborosApplication InitiatorMode BL.ByteString IO a b)
   -- ^ A dictionary of protocol versions & applications to run on an established
   -- connection.  The application to run will be chosen by initial handshake
   -- protocol (the highest shared version will be chosen).
@@ -229,7 +229,7 @@ connectTo_V1
   -- ^ Client version data sent during initial handshake protocol.  Client and
   -- server must agree on it.
   -> (ConnectionId LocalAddress ->
-        OuroborosApplication InitiatorApp BL.ByteString IO a b)
+        OuroborosApplication InitiatorMode BL.ByteString IO a b)
   -- ^ 'OuroborosInitiatorApplication' which is run on an established connection
   -- using a multiplexer after the initial handshake protocol suceeds.
   -> FilePath
@@ -253,7 +253,7 @@ connectTo_V1 snocket tracers versionData application =
 -- Comments to 'Ouroboros.Network.NodeToNode.withServer' apply here as well.
 --
 withServer
-  :: ( HasResponder appType ~ True
+  :: ( HasResponder mode ~ True
      )
   => LocalSnocket
   -> NetworkServerTracers LocalAddress NodeToClientVersion
@@ -261,7 +261,7 @@ withServer
   -> LocalAddress
   -> Versions NodeToClientVersion DictVersion
               (ConnectionId LocalAddress ->
-                 OuroborosApplication appType BL.ByteString IO a b)
+                 OuroborosApplication mode BL.ByteString IO a b)
   -> ErrorPolicies
   -> IO Void
 withServer sn tracers networkState addr versions errPolicies =
@@ -282,7 +282,7 @@ withServer sn tracers networkState addr versions errPolicies =
 -- TODO: do not leak 'Snocket' abstraction, specialise it to 'Socket's and pipes.
 --
 withServer_V1
-  :: ( HasResponder appType ~ True
+  :: ( HasResponder mode ~ True
      )
   => LocalSnocket
   -> NetworkServerTracers LocalAddress NodeToClientVersion
@@ -292,7 +292,7 @@ withServer_V1
   -- ^ Client version data sent during initial handshake protocol.  Client and
   -- server must agree on it.
   -> (ConnectionId LocalAddress ->
-        OuroborosApplication appType BL.ByteString IO a b)
+        OuroborosApplication mode BL.ByteString IO a b)
   -- ^ applications which has the reponder side, i.e.
   -- 'OuroborosResponderApplication' or
   -- 'OuroborosInitiatorAndResponderApplication'.
@@ -315,8 +315,8 @@ type NetworkClientSubcriptionTracers
 -- established connection.
 --
 ncSubscriptionWorker
-    :: forall appType x y.
-       ( HasInitiator appType ~ True
+    :: forall mode x y.
+       ( HasInitiator mode ~ True
        )
     => LocalSnocket
     -> NetworkClientSubcriptionTracers
@@ -327,7 +327,7 @@ ncSubscriptionWorker
         DictVersion
         (ConnectionId LocalAddress ->
            OuroborosApplication
-             appType
+             mode
              BL.ByteString IO x y)
     -> IO Void
 ncSubscriptionWorker
@@ -357,8 +357,8 @@ ncSubscriptionWorker
 -- | Like 'ncSubscriptionWorker' but specific to 'NodeToClientV_1'.
 --
 ncSubscriptionWorker_V1
-    :: forall appType x y.
-       ( HasInitiator appType ~ True )
+    :: forall mode x y.
+       ( HasInitiator mode ~ True )
     => LocalSnocket
     -> NetworkClientSubcriptionTracers
     -> NetworkMutableState LocalAddress
@@ -366,7 +366,7 @@ ncSubscriptionWorker_V1
     -> NodeToClientVersionData
     -> (ConnectionId LocalAddress ->
           OuroborosApplication
-            appType
+            mode
             BL.ByteString IO x y)
     -> IO Void
 ncSubscriptionWorker_V1

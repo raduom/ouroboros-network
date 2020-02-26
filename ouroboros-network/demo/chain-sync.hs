@@ -159,7 +159,7 @@ clientChainSync sockPaths = withIOManager $ \iocp ->
         (localAddressFromPath sockPath)
 
   where
-    app :: OuroborosApplication InitiatorApp LBS.ByteString IO () Void
+    app :: OuroborosApplication InitiatorMode LBS.ByteString IO () Void
     app = demoProtocol2 chainSync
 
     chainSync =
@@ -192,7 +192,7 @@ serverChainSync sockAddr = withIOManager $ \iocp -> do
   where
     prng = mkSMGen 0
 
-    app :: OuroborosApplication ResponderApp LBS.ByteString IO Void ()
+    app :: OuroborosApplication ResponderMode LBS.ByteString IO Void ()
     app = demoProtocol2 chainSync
 
     chainSync =
@@ -249,7 +249,7 @@ clientBlockFetch sockAddrs = withIOManager $ \iocp -> do
     currentChainVar    <- newTVarIO genesisChainFragment
 
     let app :: LocalConnectionId
-            -> OuroborosApplication InitiatorApp LBS.ByteString IO () Void
+            -> OuroborosApplication InitiatorMode LBS.ByteString IO () Void
         app peerid = demoProtocol3 (chainSync peerid) (blockFetch peerid)
 
         chainSync peerid =
@@ -409,7 +409,7 @@ serverBlockFetch sockAddr = withIOManager $ \iocp -> do
   where
     prng = mkSMGen 0
 
-    app :: OuroborosApplication ResponderApp LBS.ByteString IO Void ()
+    app :: OuroborosApplication ResponderMode LBS.ByteString IO Void ()
     app = demoProtocol3 chainSync blockFetch
 
     chainSync =

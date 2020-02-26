@@ -427,7 +427,7 @@ data NetworkApplication m peer localPeer
 initiatorNetworkApplication
   :: NetworkApplication m peer localPeer bytes bytes bytes bytes bytes bytes a
   -> peer
-  -> OuroborosApplication InitiatorApp bytes m a Void
+  -> OuroborosApplication InitiatorMode bytes m a Void
 initiatorNetworkApplication NetworkApplication {..} them =
     nodeToNodeProtocols
       NodeToNodeProtocols {
@@ -445,7 +445,7 @@ initiatorNetworkApplication NetworkApplication {..} them =
 responderNetworkApplication
   :: NetworkApplication m peer localPeer bytes bytes bytes bytes bytes bytes a
   -> peer
-  -> OuroborosApplication ResponderApp bytes m Void a
+  -> OuroborosApplication ResponderMode bytes m Void a
 responderNetworkApplication NetworkApplication {..} them =
     nodeToNodeProtocols
       NodeToNodeProtocols {
@@ -463,7 +463,7 @@ responderNetworkApplication NetworkApplication {..} them =
 localResponderNetworkApplication
   :: NetworkApplication m peer localPeer bytes bytes bytes bytes bytes bytes a
   -> localPeer
-  -> OuroborosApplication ResponderApp bytes m Void a
+  -> OuroborosApplication ResponderMode bytes m Void a
 localResponderNetworkApplication NetworkApplication {..} peer =
     nodeToClientProtocols
       NodeToClientProtocols {
