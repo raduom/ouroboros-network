@@ -4,11 +4,10 @@
 {-# LANGUAGE TypeFamilies          #-}
 
 module Network.Mux.Egress (
-      mux
+      muxer
     -- $egress
     -- $servicingsSemantics
 
-    , MuxState(..)
     , EgressQueue
     , TranslocationServiceRequest (..)
     , Wanton (..)
@@ -107,17 +106,6 @@ import           Network.Mux.Types
 -- >                           ▼
 -- >                           ●
 
--- | Each peer's multiplexer has some state that provides both
--- de-multiplexing details (for despatch of incoming mesages to mini
--- protocols) and for dispatching incoming SDUs.  This is shared
--- between the muxIngress and the bearerIngress processes.
---
-data MuxState m = MuxState {
-       -- | Egress queue, shared by all miniprotocols
-       egressQueue :: EgressQueue m,
-       bearer      :: MuxBearer m
-     }
-
 type EgressQueue m = TBQueue m (TranslocationServiceRequest m)
 
 -- | A TranslocationServiceRequest is a demand for the translocation
@@ -138,25 +126,27 @@ newtype Wanton m = Wanton { want :: StrictTVar m BL.ByteString }
 -- shared FIFO that contains the items of work. This is processed so
 -- that each active demand gets a `maxSDU`s work of data processed
 -- each time it gets to the front of the queue
-mux :: MonadSTM m
-    => MuxState m
-    -> m void
-mux muxstate@MuxState{egressQueue} =
+muxer :: MonadSTM m
+      => EgressQueue m
+      -> MuxBearer m
+      -> m void
+muxer egressQueue bearer =
     forever $ do
       TLSRDemand mpc md d <- atomically $ readTBQueue egressQueue
-      processSingleWanton muxstate mpc md d
+      processSingleWanton egressQueue bearer mpc md d
 
 -- | Pull a `maxSDU`s worth of data out out the `Wanton` - if there is
 -- data remaining requeue the `TranslocationServiceRequest` (this
 -- ensures that any other items on the queue will get some service
 -- first.
 processSingleWanton :: MonadSTM m
-                    => MuxState m
+                    => EgressQueue m
+                    -> MuxBearer m
                     -> MiniProtocolNum
                     -> MiniProtocolDir
                     -> Wanton m
                     -> m ()
-processSingleWanton MuxState{egressQueue, bearer} mpc md wanton = do
+processSingleWanton egressQueue bearer mpc md wanton = do
     blob <- atomically $ do
       -- extract next SDU
       d <- readTVar (want wanton)
