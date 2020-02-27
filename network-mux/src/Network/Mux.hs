@@ -122,8 +122,8 @@ muxStart tracer (MuxApplication ptcls) bearer = do
   where
     addProtocolQueues :: MuxMiniProtocol mode m a b
                       -> m ( MuxMiniProtocol mode m a b
-                           , StrictTVar m BL.ByteString
-                           , StrictTVar m BL.ByteString
+                           , IngressQueue m
+                           , IngressQueue m
                            )
     addProtocolQueues ptcl = do
         initiatorQ <- newTVarM BL.empty
@@ -155,8 +155,8 @@ muxStart tracer (MuxApplication ptcls) bearer = do
       -> EgressQueue m
       -> MuxMiniProtocol mode m a b
       -> MiniProtocolIx
-      -> StrictTVar m BL.ByteString
-      -> StrictTVar m BL.ByteString
+      -> IngressQueue m
+      -> IngressQueue m
       -> Maybe (JobPool.Job m MuxJobResult)
     miniProtocolJob selectRunner pmode tq
                     MuxMiniProtocol {
@@ -185,7 +185,7 @@ muxStart tracer (MuxApplication ptcls) bearer = do
     -- Job threads will be prevented from exiting until all their SDUs have been
     -- transmitted unless an exception/error is encounter. In that case all
     -- jobs will be cancelled directly.
-    mpsJobExit :: StrictTVar m BL.ByteString -> m ()
+    mpsJobExit :: IngressQueue m -> m ()
     mpsJobExit w = do
         traceWith tracer (MuxTraceState Dying)
         atomically $ do
@@ -270,7 +270,7 @@ muxChannel
     -> Wanton m
     -> MiniProtocolNum
     -> MiniProtocolDir
-    -> StrictTVar m BL.ByteString
+    -> IngressQueue m
     -> Channel m
 muxChannel tracer tq want@(Wanton w) mc md q =
     Channel { send, recv}

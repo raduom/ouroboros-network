@@ -85,7 +85,7 @@ data MiniProtocolDispatch m =
 
 data MiniProtocolDispatchInfo m =
      MiniProtocolDispatchInfo
-       !(StrictTVar m BL.ByteString)
+       !(IngressQueue m)
        !Int
 
 
@@ -93,8 +93,8 @@ data MiniProtocolDispatchInfo m =
 -- the underlying Mux Bearer and forwards it to the matching ingress queue.
 demuxer :: (MonadSTM m, MonadThrow m, MonadThrow (STM m), HasCallStack)
         => [( MuxMiniProtocol mode m a b
-            , StrictTVar m BL.ByteString
-            , StrictTVar m BL.ByteString
+            , IngressQueue m
+            , IngressQueue m
             )]
         -> MuxBearer m
         -> m void
@@ -132,8 +132,8 @@ lookupMiniProtocol (MiniProtocolDispatch codeTbl ptclTbl) code mode
 -- | Construct the array of TBQueues, one for each protocol id, and each mode.
 --
 setupDispatchTable :: [( MuxMiniProtocol mode m a b
-                       , StrictTVar m BL.ByteString
-                       , StrictTVar m BL.ByteString
+                       , IngressQueue m
+                       , IngressQueue m
                        )]
                    -> MiniProtocolDispatch m
 setupDispatchTable ptcls =
