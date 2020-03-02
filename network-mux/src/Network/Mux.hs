@@ -233,7 +233,7 @@ miniProtocolJob tracer egressQueue
                     },
                   miniProtocolIngressQueue
                 }
-                (MiniProtocolAction protocolAction _completionVar) =
+                (MiniProtocolAction protocolAction completionVar) =
     JobPool.Job jobAction
                 (MiniProtocolException miniProtocolNum miniProtocolDirEnum)
   where
@@ -242,8 +242,10 @@ miniProtocolJob tracer egressQueue
       let chan = muxChannel tracer egressQueue (Wanton w)
                            miniProtocolNum miniProtocolDirEnum
                            miniProtocolIngressQueue
-      _ <- protocolAction chan
+      result  <- protocolAction chan
       mpsJobExit w
+      atomically $ do
+        putTMVar completionVar result
       return (MiniProtocolShutdown miniProtocolNum miniProtocolDirEnum)
 
     miniProtocolDirEnum = protocolDirEnum miniProtocolDir
