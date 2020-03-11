@@ -81,7 +81,7 @@ import           Cardano.Prelude (NoUnexpectedThunks (..))
 
 import           Control.Tracer
 
-import qualified Network.Mux as Mx
+import qualified Network.Mux.Compat as Mx
 import Network.Mux.DeltaQ.TraceTransformer
 import qualified Network.Mux.Types as Mx
 import           Network.Mux.Types (MuxBearer)

@@ -20,7 +20,7 @@ import           Text.Printf
 import           Control.Monad.Class.MonadSTM.Strict
 import           Control.Monad.Class.MonadThrow
 
-import           Network.Mux.Types hiding (MuxMiniProtocol(..))
+import           Network.Mux.Types
 import           Network.Mux.Trace
 
 

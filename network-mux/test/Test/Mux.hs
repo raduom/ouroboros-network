@@ -56,7 +56,7 @@ import           System.Process (createPipe)
 
 import           Test.Mux.ReqResp
 
-import           Network.Mux
+import           Network.Mux.Compat
 import           Network.Mux.Codec
 import           Network.Mux.Channel
 import           Network.Mux.Types (MuxSDU(..), RemoteClockModel(..))
