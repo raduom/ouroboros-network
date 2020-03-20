@@ -28,6 +28,7 @@ import           Cardano.Slotting.Slot (EpochSize (..))
 import           Ouroboros.Network.Magic (NetworkMagic (..))
 
 import           Ouroboros.Consensus.BlockchainTime
+import           Ouroboros.Consensus.BlockchainTime.Mock (NumSlots (..))
 import           Ouroboros.Consensus.Mempool.API (extractTxs)
 import           Ouroboros.Consensus.Node.ProtocolInfo
 import           Ouroboros.Consensus.NodeId
@@ -42,13 +43,16 @@ import           Test.ThreadNet.Util.NodeTopology
 import           Test.Util.Orphans.Arbitrary ()
 
 import qualified Cardano.Ledger.Shelley.Crypto as SL
+import qualified Shelley.Spec.Ledger.Coin as SL
 import qualified Shelley.Spec.Ledger.Keys as SL
 import qualified Shelley.Spec.Ledger.OCert as SL
 import qualified Shelley.Spec.Ledger.PParams as SL
+import qualified Shelley.Spec.Ledger.TxData as SL
 
 import           Ouroboros.Consensus.Shelley.Ledger (ShelleyBlock)
 import           Ouroboros.Consensus.Shelley.Node
 import           Ouroboros.Consensus.Shelley.Protocol
+import           Ouroboros.Consensus.Shelley.Protocol.Crypto (DSIGN)
 
 import           Test.Consensus.Shelley.MockCrypto (TPraosMockCrypto)
 import           Test.ThreadNet.TxGen.Shelley ()
@@ -63,7 +67,24 @@ tests = testGroup "RealTPraos"
               shrinkRealTPraosTestConfig
             $ \testConfig ->
           prop_simple_real_tpraos_convergence k testConfig
+    , testProperty "basic test" $ once basicTest
     ]
+
+basicTest :: Property
+basicTest = prop_simple_real_tpraos_convergence k testConfig
+  where
+    k = SecurityParam 5
+    numCoreNodes = NumCoreNodes 2
+    numSlots     = NumSlots 1
+    testConfig = TestConfig
+      { numCoreNodes
+      , numSlots
+      , nodeJoinPlan = trivialNodeJoinPlan numCoreNodes
+      , nodeRestarts = noRestarts
+      , nodeTopology = meshNodeTopology numCoreNodes
+      , slotLength   = tpraosSlotLength
+      , initSeed     = Seed (0,0,0,0,0)
+      }
 
 tpraosSlotLength :: SlotLength
 tpraosSlotLength = slotLengthFromSec 2
@@ -117,6 +138,11 @@ prop_simple_real_tpraos_convergence k
 data CoreNode c = CoreNode {
       cnGenesisKey  :: !(SignKeyDSIGN (SL.DSIGN c))
     , cnDelegateKey :: !(SignKeyDSIGN (SL.DSIGN c))
+      -- ^ Cold delegate key. The hash of the corresponding verification
+      -- (public) key will be used as the payment credential.
+    , cnStakingKey  :: !(SignKeyDSIGN (SL.DSIGN c))
+      -- ^ The hash of the corresponding verification (public) key will be
+      -- used as the stakign credential.
     , cnVRF         :: !(SignKeyVRF   (SL.VRF   c))
     , cnKES         :: !(SignKeyKES   (SL.KES   c))
     , cnOCert       :: !(SL.OCert               c)
@@ -130,6 +156,7 @@ genCoreNode
 genCoreNode maxKESEvolutions startKESPeriod = do
     genKey <- genKeyDSIGN
     delKey <- genKeyDSIGN
+    stkKey <- genKeyDSIGN
     vrfKey <- genKeyVRF
     kesKey <- genKeyKES (fromIntegral maxKESEvolutions)
     let kesPub = SL.VKeyES $ deriveVerKeyKES kesKey
@@ -146,6 +173,7 @@ genCoreNode maxKESEvolutions startKESPeriod = do
     return CoreNode {
         cnGenesisKey  = genKey
       , cnDelegateKey = delKey
+      , cnStakingKey  = stkKey
       , cnVRF         = vrfKey
       , cnKES         = kesKey
       , cnOCert       = ocert
@@ -172,13 +200,21 @@ mkGenesisConfig k maxKESEvolutions coreNodes = ShelleyGenesis {
     , sgSlotLength            = tpraosSlotLength
     , sgUpdateQuorum          = 1  -- TODO
     , sgMaxMajorPV            = 1000 -- TODO
-    , sgMaxLovelaceSupply     = 1000 -- TODO
+    , sgMaxLovelaceSupply     = maxLovelaceSupply
     , sgMaxBodySize           = 1000 -- TODO
     , sgMaxHeaderSize         = 1000 -- TODO
     , sgGenDelegs             = coreNodesToGenesisMapping
-    , sgInitialFunds          = Map.empty -- TODO
+    , sgInitialFunds          = initialFunds
     }
   where
+    initialLovelacePerCoreNode :: Word64
+    initialLovelacePerCoreNode = 1000
+
+     -- TODO
+    maxLovelaceSupply :: Word64
+    maxLovelaceSupply =
+      fromIntegral (length coreNodes) * initialLovelacePerCoreNode
+
     coreNodesToGenesisMapping :: Map (SL.GenKeyHash c) (SL.KeyHash c)
     coreNodesToGenesisMapping  = Map.fromList
       [ ( SL.GenKeyHash $ SL.hash $ deriveVerKeyDSIGN cnGenesisKey
@@ -186,6 +222,19 @@ mkGenesisConfig k maxKESEvolutions coreNodes = ShelleyGenesis {
         )
       | CoreNode { cnGenesisKey, cnDelegateKey } <- coreNodes
       ]
+
+    initialFunds :: Map (SL.Addr c) SL.Coin
+    initialFunds = Map.fromList
+      [ (addr, coin)
+      | CoreNode { cnDelegateKey, cnStakingKey } <- coreNodes
+      , let addr = SL.AddrBase
+              (mkCredential cnDelegateKey)
+              (mkCredential cnStakingKey)
+            coin = SL.Coin $ fromIntegral initialLovelacePerCoreNode
+      ]
+
+    mkCredential :: SignKeyDSIGN (DSIGN c) -> SL.Credential c
+    mkCredential = SL.KeyHashObj . SL.hashKey . SL.VKey . deriveVerKeyDSIGN
 
 mkProtocolRealTPraos
   :: forall c. Crypto c

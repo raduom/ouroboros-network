@@ -450,6 +450,7 @@ runThreadNetwork ThreadNetworkArgs
             -- (specifically not the communication threads running the Mini
             -- Protocols, like the ChainSync Client)
             (kernel, app) <- forkNode
+              coreNodeId
               varRNG
               nodeBtime
               nodeRegistry
@@ -564,12 +565,13 @@ runThreadNetwork ThreadNetworkArgs
            -> Tracer m (RealPoint blk, BlockNo)
               -- ^ added block tracer
            -> NodeDBs (StrictTVar m MockFS)
+           -> CoreNodeId
            -> ChainDbArgs m blk
     mkArgs
       btime registry
       cfg initLedger
       invalidTracer addTracer
-      nodeDBs = ChainDbArgs
+      nodeDBs coreNodeId = ChainDbArgs
         { -- Decoders
           cdbDecodeHash           = nodeDecodeHeaderHash     (Proxy @blk)
         , cdbDecodeBlock          = nodeDecodeBlock          cfg
@@ -605,7 +607,8 @@ runThreadNetwork ThreadNetworkArgs
         , cdbAddHdrEnv            = nodeAddHeaderEnvelope (Proxy @blk)
         , cdbImmDbCacheConfig     = Index.CacheConfig 2 60
         -- Misc
-        , cdbTracer               = instrumentationTracer <> nullDebugTracer
+        , cdbTracer               = instrumentationTracer <>
+                                    showTracing (decorateId coreNodeId debugTracer)
         , cdbTraceLedger          = nullDebugTracer
         , cdbRegistry             = registry
         , cdbGcDelay              = 0
@@ -622,9 +625,14 @@ runThreadNetwork ThreadNetworkArgs
               -> traceWith addTracer (p, bno)
           _   -> pure ()
 
+    decorateId :: CoreNodeId -> Tracer m String -> Tracer m String
+    decorateId (CoreNodeId cid) = contramap $ \s ->
+        show cid <> " | " <> s
+
     forkNode
       :: HasCallStack
-      => StrictTVar m ChaChaDRG
+      => CoreNodeId
+      -> StrictTVar m ChaChaDRG
       -> BlockchainTime m
       -> ResourceRegistry m
       -> ProtocolInfo blk
@@ -634,7 +642,7 @@ runThreadNetwork ThreadNetworkArgs
       -> m ( NodeKernel m NodeId blk
            , LimitedApp m NodeId blk
            )
-    forkNode varRNG btime registry pInfo nodeInfo txs0 = do
+    forkNode coreNodeId varRNG btime registry pInfo nodeInfo txs0 = do
       let ProtocolInfo{..} = pInfo
 
       let NodeInfo
@@ -653,6 +661,7 @@ runThreadNetwork ThreadNetworkArgs
             invalidTracer
             addTracer
             nodeInfoDBs
+            coreNodeId
       chainDB <- snd <$>
         allocate registry (const (ChainDB.openDB chainDbArgs)) ChainDB.closeDB
 
@@ -730,7 +739,8 @@ runThreadNetwork ThreadNetworkArgs
             { tracers             =
                 -- traces the node's local events other than those from the
                 -- ChainDB
-                instrumentationTracers <> nullDebugTracers
+                instrumentationTracers <>
+                showTracers (decorateId coreNodeId debugTracer)
             , registry
             , maxClockSkew           = ClockSkew 1
             , cfg                    = pInfoConfig
@@ -1003,12 +1013,13 @@ directedEdgeInner edgeStatusVar
       [ miniProtocol
           (wrapMPEE MPEEChainSyncClient naChainSyncClient)
           naChainSyncServer
+      -- Don't swallow exceptions thrown by these, let them fail the test
       , miniProtocol
-          (wrapMPEE MPEEBlockFetchClient naBlockFetchClient)
-          (wrapMPEE MPEEBlockFetchServer naBlockFetchServer)
+          naBlockFetchClient -- (wrapMPEE MPEEBlockFetchClient naBlockFetchClient)
+          naBlockFetchServer -- (wrapMPEE MPEEBlockFetchServer naBlockFetchServer)
       , miniProtocol
-          (wrapMPEE MPEETxSubmissionClient naTxSubmissionClient)
-          (wrapMPEE MPEETxSubmissionServer naTxSubmissionServer)
+          naTxSubmissionClient -- (wrapMPEE MPEETxSubmissionClient naTxSubmissionClient)
+          naTxSubmissionServer -- (wrapMPEE MPEETxSubmissionServer naTxSubmissionServer)
       ]
   where
     getApp v = readTVar v >>= \case
