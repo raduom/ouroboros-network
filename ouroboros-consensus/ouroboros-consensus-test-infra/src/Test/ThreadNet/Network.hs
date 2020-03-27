@@ -180,6 +180,7 @@ data ThreadNetworkArgs m blk = ThreadNetworkArgs
     --
     -- This is temporary: once we have proper support for the hard fork
     -- combinator, 'EpochInfo' must be /derived/ from the current ledger state.
+  , tnaTxGenExtra   :: TxGenExtra blk
   }
 
 {-------------------------------------------------------------------------------
@@ -263,6 +264,7 @@ runThreadNetwork ThreadNetworkArgs
   , tnaSlotLength     = slotLength
   , tnaTopology       = nodeTopology
   , tnaEpochSize      = epochSize
+  , tnaTxGenExtra     = txGenExtra
   } = withRegistry $ \sharedRegistry -> do
     -- This shared registry is used for 'newTestBlockchainTime' and the
     -- network communication threads. Each node will create its own registry
@@ -553,7 +555,7 @@ runThreadNetwork ThreadNetworkArgs
       void $ onSlotChange btime $ \curSlotNo -> do
         ledger <- atomically $ ledgerState <$> getExtLedger
         txs    <- runMonadRandom runMonadRandomDict $ \_lift' ->
-          testGenTxs numCoreNodes curSlotNo cfg ledger
+          testGenTxs numCoreNodes curSlotNo cfg ledger txGenExtra
         void $ addTxs mempool txs
 
     mkArgs :: BlockchainTime m
