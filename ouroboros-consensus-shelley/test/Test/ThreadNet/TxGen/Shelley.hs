@@ -2,8 +2,11 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE FlexibleInstances        #-}
 {-# LANGUAGE NamedFieldPuns           #-}
+{-# LANGUAGE TypeFamilies             #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-module Test.ThreadNet.TxGen.Shelley () where
+module Test.ThreadNet.TxGen.Shelley
+  ( ShelleyTxGenExtra(..)
+  ) where
 
 import           Control.Monad.Except (runExcept)
 import           Crypto.Number.Generate (generateBetween, generateMax)
@@ -33,12 +36,18 @@ import qualified Test.Shelley.Spec.Ledger.Generator.Utxo as Gen
 
 import           Test.Consensus.Shelley.MockCrypto (TPraosMockCrypto)
 
+data ShelleyTxGenExtra = ShelleyTxGenExtra
+  { stgeKeyPairs :: SL.KeyPairs TPraosMockCrypto
+  }
 
 instance TxGen (ShelleyBlock TPraosMockCrypto) where
+
+  type TxGenExtra (ShelleyBlock TPraosMockCrypto) = ShelleyTxGenExtra
+
   -- TODO #1823
-  testGenTxs _numCoreNodes curSlotNo cfg = \st -> do
+  testGenTxs _numCoreNodes curSlotNo cfg lst stge = do
       n <- generateBetween 0 20
-      go [] n $ applyChainTick (configLedger cfg) curSlotNo st
+      go [] n $ applyChainTick (configLedger cfg) curSlotNo lst
     where
       go :: MonadRandom m
          => [GenTx (ShelleyBlock TPraosMockCrypto)]  -- ^ Accumulator
@@ -47,7 +56,7 @@ instance TxGen (ShelleyBlock TPraosMockCrypto) where
          -> m [GenTx (ShelleyBlock TPraosMockCrypto)]
       go acc 0 _  = return (reverse acc)
       go acc n st = do
-        tx <- quickCheckAdapter $ genTx cfg st
+        tx <- quickCheckAdapter $ genTx cfg st (stgeKeyPairs stge)
         case runExcept $ applyTx (configLedger cfg) tx st of
           -- We don't mind generating invalid transactions
           Left  _   -> go (tx:acc) (n - 1) st
@@ -58,8 +67,9 @@ instance TxGen (ShelleyBlock TPraosMockCrypto) where
 genTx
   :: TopLevelConfig (ShelleyBlock TPraosMockCrypto)
   -> TickedLedgerState (ShelleyBlock TPraosMockCrypto)
+  -> SL.KeyPairs TPraosMockCrypto
   -> Gen (GenTx (ShelleyBlock TPraosMockCrypto))
-genTx _cfg TickedLedgerState { tickedSlotNo, tickedLedgerState } =
+genTx _cfg TickedLedgerState { tickedSlotNo, tickedLedgerState } keyPairs =
     mkShelleyTx <$> Gen.genTx
       ledgerEnv
       (utxoSt, dpState)
@@ -97,15 +107,6 @@ genTx _cfg TickedLedgerState { tickedSlotNo, tickedLedgerState } =
       . SL.esLState
       $ epochState
 
-    -- delegate pub key + staking pub key?
-    keyPairs :: CSL.KeyPairs
-    keyPairs =
-      [ (_payKeyPair, _stakeKeyPair) -- CONTINUE
-      | let SL.UTxO utxo = SL._utxo utxoSt
-      , SL.TxOut (SL.AddrBase (SL.KeyHashObj payKeyHash) (SL.KeyHashObj stakeKeyHash)) _ <- Map.elems utxo
-      ]
-
-
 -- UTxO (fromList [(TxIn (TxId {_TxId = 7af9b492}) 0,TxOut (AddrBase (KeyHashObj (DiscKeyHash a936e9f6)) (KeyHashObj (DiscKeyHash f1314e34))) (Coin 1000))])
 
     keyHashMap :: Map CSL.AnyKeyHash CSL.KeyPair
@@ -121,6 +122,7 @@ genTx _cfg TickedLedgerState { tickedSlotNo, tickedLedgerState } =
     scripts = []
 
     -- TODO
+    -- These are used for submitting update proposals and voting on them
     coreKeys :: [(CSL.CoreKeyPair, Gen.AllPoolKeys)]
     coreKeys = []
 

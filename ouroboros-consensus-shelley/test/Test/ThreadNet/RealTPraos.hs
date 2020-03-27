@@ -1,4 +1,6 @@
+{-# LANGUAGE DataKinds                #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE FlexibleContexts         #-}
 {-# LANGUAGE NamedFieldPuns           #-}
 {-# LANGUAGE PatternSynonyms          #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
@@ -55,7 +57,7 @@ import           Ouroboros.Consensus.Shelley.Protocol
 import           Ouroboros.Consensus.Shelley.Protocol.Crypto (DSIGN)
 
 import           Test.Consensus.Shelley.MockCrypto (TPraosMockCrypto)
-import           Test.ThreadNet.TxGen.Shelley ()
+import           Test.ThreadNet.TxGen.Shelley (ShelleyTxGenExtra(..))
 
 tests :: TestTree
 tests = testGroup "RealTPraos"
@@ -116,6 +118,7 @@ prop_simple_real_tpraos_convergence k
                   genesisConfig
                   (coreNodes !! fromIntegral nid)
             , rekeying    = Nothing
+            , txGenExtra  = ShelleyTxGenExtra $ coreNodeKeyPairs <$> coreNodes
             }
 
     initialKESPeriod :: SL.KESPeriod
@@ -147,6 +150,20 @@ data CoreNode c = CoreNode {
     , cnKES         :: !(SignKeyKES   (SL.KES   c))
     , cnOCert       :: !(SL.OCert               c)
     }
+
+-- | Extract payment and staking key pairs from the core node
+coreNodeKeyPairs
+  :: DSIGNAlgorithm (DSIGN c)
+  => CoreNode c
+  -> (SL.KeyPair SL.Regular c, SL.KeyPair SL.Regular c)
+coreNodeKeyPairs CoreNode{cnDelegateKey, cnStakingKey}
+  = (paymentKP, stakingKP)
+    where
+      paymentKP = SL.KeyPair (SL.VKey $ deriveVerKeyDSIGN cnDelegateKey )
+                             (SL.SKey cnDelegateKey)
+      stakingKP = SL.KeyPair (SL.VKey $ deriveVerKeyDSIGN cnStakingKey )
+                             (SL.SKey cnStakingKey)
+
 
 genCoreNode
   :: (MonadRandom m, TPraosCrypto c)
