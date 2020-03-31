@@ -72,6 +72,9 @@ import           Debug.Trace
 -------------------------------------------------------------------------------}
 
 data TPraosLeaderCredentials c = TPraosLeaderCredentials {
+    -- | Signing KES key. Note that this is not inside 'TPraosIsCoreNode' since
+    --   it gets evolved automatically, whereas 'TPraosIsCoreNode' does not
+    --   change.
     tpraosLeaderCredentialsSignKey    :: SignKeyKES (KES c)
   , tpraosLeaderCredentialsIsCoreNode :: TPraosIsCoreNode c
   }
