@@ -95,6 +95,7 @@ library
                        Ouroboros.Consensus.Util.IOLike
                        Ouroboros.Consensus.Util.MonadSTM.NormalForm
                        Ouroboros.Consensus.Util.MonadSTM.StrictMVar
+                       Ouroboros.Consensus.Util.MonadSTM.StrictTQueue
                        Ouroboros.Consensus.Util.Orphans
                        Ouroboros.Consensus.Util.Random
                        Ouroboros.Consensus.Util.RedundantConstraints
