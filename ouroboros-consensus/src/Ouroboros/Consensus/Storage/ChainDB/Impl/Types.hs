@@ -222,6 +222,9 @@ data ChainDbEnv m blk = CDB
   , cdbGcDelay         :: !DiffTime
     -- ^ How long to wait between copying a block from the VolatileDB to
     -- ImmutableDB and garbage collecting it from the VolatileDB
+  , cdbGcInterval      :: !DiffTime
+    -- ^ Minimum time between two garbage collections. Is used batch garbage
+    -- collections.
   , cdbKillBgThreads   :: !(StrictTVar m (m ()))
     -- ^ A handle to kill the background threads.
   , cdbChunkInfo       :: !ImmDB.ChunkInfo

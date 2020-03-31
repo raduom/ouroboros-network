@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE NumericUnderscores  #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -32,11 +33,12 @@ module Ouroboros.Consensus.Storage.ChainDB.Impl.Background
   ) where
 
 import           Control.Exception (assert)
-import           Control.Monad (forM_, forever, unless, void)
+import           Control.Monad (forM_, forever, unless, void, when)
 import           Control.Tracer
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (fromMaybe)
+import           Data.Time.Clock (diffTimeToPicoseconds)
 import           Data.Void (Void)
 import           Data.Word
 import           GHC.Stack (HasCallStack)
@@ -44,7 +46,7 @@ import           GHC.Stack (HasCallStack)
 import           Ouroboros.Network.AnchoredFragment (AnchoredFragment (..))
 import qualified Ouroboros.Network.AnchoredFragment as AF
 import           Ouroboros.Network.Block (ChainHash (..), HasHeader, Point,
-                     SlotNo, blockPoint, pointHash, pointSlot)
+                     SlotNo (..), blockPoint, pointHash, pointSlot)
 import           Ouroboros.Network.Point (WithOrigin (..))
 
 import           Ouroboros.Consensus.Block
@@ -266,6 +268,7 @@ copyAndSnapshotRunner cdb@CDB{..} gcSchedule =
           (contramap TraceGCEvent cdbTracer)
           slotNo
           cdbGcDelay
+          cdbGcInterval
           gcSchedule
 
 -- | Write a snapshot of the LedgerDB to disk and remove old snapshots
@@ -317,35 +320,40 @@ garbageCollect CDB{..} slotNo = do
 --
 -- > [(16:01:12, SlotNo 1012), (16:04:38, SlotNo 1045), ..]
 --
--- By using 'scheduleGC', monotonicity is practically guaranteed for standard
--- usage. Theoretically, multiple concurrent calls to 'scheduleGC' might
--- violate it, but this won't happen in practice, as it would mean that
--- multiple calls to 'copyToImmDB' (which cannot run concurrent with itself)
--- have finished very short after each other. Even then, the differences will
--- be ignorable (<1s), and actually won't matter at all, as garbage collection
--- timing doesn't have to be precise. In fact, it is exactly the goal to
--- introduce a delay between copying blocks from the ImmutableDB to the
--- VolatileDB and garbage-collecting them from the VolatileDB.
+-- Scheduling a garbage collection with 'scheduleGC' will add an entry to the
+-- end of the queue for the given slot at the time equal to now
+-- ('getMonotonicTime') + the @gcDelay@. Unless the last entry in the queue
+-- was scheduled for the same @gcInterval@, in that case the new entry
+-- replaces the existing entry. The goal of this is to batch garbage
+-- collections so that, when possible, at most one garbage collection happens
+-- every @gcInterval@.
 --
--- If a 'Time' @t@ in the queue /is/ earlier than the 'Time' @t'@ before it in
--- the queue, then the GC scheduled for @t@ will simply be executed at @t'@.
+-- For example, starting with an empty queue and @gcDelay = 5min@ and
+-- @gcInterval = 10s@:
 --
--- All this combined means that a garbage collection scheduled at 'Time' @t@
--- will be performed at @t@ /or/ later (but never earlier), with no hard
--- guarantees about how much later.
+-- At 8:43:22, we schedule a GC for slot 10:
 --
--- How long will this queue be in practice?
+-- > [(8:48:22, SlotNo 10)]
 --
--- If we say a block is produced every 20 seconds, then a new GC is scheduled
--- every 20 seconds. Ignoring start-up, the queue will then be @delay / 20s@
--- entries long. For example, if the delay is 1h, then the queue will be 180
--- entries long, which is acceptable.
+-- Next, at 8:43:24, we schedule a GC for slot 11:
 --
--- In Praos, the slot length decreases, but the number of blocks produced (per
--- time) will remain the same as the density decreases too (more slots, but
--- many of them empty), hence the queue queue length will also remain the
--- same.
-newtype GcSchedule m = GcSchedule (TQueue m (Time, SlotNo))
+-- > [(8:48:24, SlotNo 11)]
+--
+-- Note that the existing entry is replaced with the new one, as they map to
+-- the same @gcInterval@. Instead of two GCs 2 seconds apart, we will only
+-- schedule one GC.
+--
+-- Next, at 8:44:02, we schedule a GC for slot 12:
+--
+-- > [(8:48:24, SlotNo 11), (8:49:02, SlotNo 12)]
+--
+-- Now, a new entry was appended to the queue, as it doesn't map to the same
+-- @gcInterval@ as the last one.
+--
+-- Whether we're syncing at high speed or downloading blocks as they are
+-- produced, the length of the queue will be at most @gcDelay / gcInterval@,
+-- e.g., 5min / 10s = 30 entries.
+data GcSchedule m = GcSchedule (StrictTQueue m (Time, SlotNo))
 
 newGcSchedule :: IOLike m => m (GcSchedule m)
 newGcSchedule = GcSchedule <$> atomically newTQueue
@@ -355,12 +363,26 @@ scheduleGC
   => Tracer m (TraceGCEvent blk)
   -> SlotNo    -- ^ The slot to use for garbage collection
   -> DiffTime  -- ^ How long to wait until performing the GC
+  -> DiffTime  -- ^ The GC interval: the minimum time between two GCs
   -> GcSchedule m
   -> m ()
-scheduleGC tracer slotNo delay (GcSchedule queue) = do
-    timeScheduledForGC <- addTime delay <$> getMonotonicTime
-    atomically $ writeTQueue queue (timeScheduledForGC, slotNo)
-    traceWith tracer $ ScheduledGC slotNo delay
+scheduleGC tracer slotNo gcDelay gcInterval (GcSchedule queue) = do
+    timeScheduledForGC <- addTime gcDelay <$> getMonotonicTime
+    atomically $ do
+      mbLastScheduled <- peekTailQueue queue
+      case mbLastScheduled of
+        Just (lastTimeScheduledForGC, _lastSlotNo)
+          | lastTimeScheduledForGC `sameGcInterval` timeScheduledForGC
+          -> modifyTailTQueue queue (const (timeScheduledForGC, slotNo))
+        _ -> writeTQueue queue (timeScheduledForGC, slotNo)
+    traceWith tracer $ ScheduledGC slotNo gcDelay
+  where
+    toPico = diffTimeToPicoseconds
+
+    sameGcInterval :: Time -> Time -> Bool
+    sameGcInterval (Time time1) (Time time2) =
+         toPico time1 `div` toPico gcInterval
+      == toPico time2 `div` toPico gcInterval
 
 gcScheduleRunner
   :: forall m. IOLike m
@@ -368,7 +390,8 @@ gcScheduleRunner
   -> (SlotNo -> m ())  -- ^ GC function
   -> m Void
 gcScheduleRunner (GcSchedule queue) runGc = forever $ do
-    (timeScheduledForGC, slotNo) <- atomically $ readTQueue queue
+    (timeScheduledForGC, slotNo) <- atomically $
+      readTQueue queue
     currentTime <- getMonotonicTime
     let toWait = max 0 (timeScheduledForGC `diffTime` currentTime)
     threadDelay toWait

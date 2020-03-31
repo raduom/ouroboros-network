@@ -312,7 +312,6 @@ mkChainDbArgs tracer registry btime dbPath cfg initLedger
     , ChainDB.cdbTracer               = tracer
     , ChainDB.cdbImmValidation        = ValidateMostRecentChunk
     , ChainDB.cdbVolValidation        = NoValidation
-    , ChainDB.cdbGcDelay              = secondsToDiffTime 10
     , ChainDB.cdbBlockchainTime       = btime
     }
   where

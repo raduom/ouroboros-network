@@ -104,6 +104,7 @@ data ChainDbArgs m blk = forall h1 h2 h3. (Eq h1, Eq h2, Eq h3) => ChainDbArgs {
     , cdbTraceLedger          :: Tracer m (LgrDB.LedgerDB blk)
     , cdbRegistry             :: ResourceRegistry m
     , cdbGcDelay              :: DiffTime
+    , cdbGcInterval           :: DiffTime
     , cdbBlocksToAddSize      :: Word
       -- ^ Size of the queue used to store asynchronously added blocks. This
       -- is the maximum number of blocks that could be kept in memory at the
@@ -119,6 +120,15 @@ data ChainDbSpecificArgs m blk = ChainDbSpecificArgs {
       -- ^ TODO: the ImmutableDB takes a 'ResourceRegistry' too, but we're
       -- using it for ChainDB-specific things. Revisit these arguments.
     , cdbsGcDelay         :: DiffTime
+      -- ^ Delay between copying a block to the ImmutableDB and triggering a
+      -- garbage collection for the corresponding slot on the VolatileDB.
+      --
+      -- The goal of the delay is to ensure that the write to the ImmutableDB
+      -- has been flushed to disk before deleting the block from the
+      -- VolatileDB, so that a crash won't result in the loss of the block.
+    , cdbsGcInterval      :: DiffTime
+      -- ^ Batch all scheduled GCs so that at most one GC happens every
+      -- 'cdbsGcInterval'.
     , cdbsBlockchainTime  :: BlockchainTime m
     , cdbsEncodeHeader    :: Header blk -> Encoding
     , cdbsBlocksToAddSize :: Word
@@ -134,7 +144,8 @@ data ChainDbSpecificArgs m blk = ChainDbSpecificArgs {
 -- * 'cdbsEncodeHeader'
 defaultSpecificArgs :: ChainDbSpecificArgs m blk
 defaultSpecificArgs = ChainDbSpecificArgs{
-      cdbsGcDelay         = oneHour
+      cdbsGcDelay         = secondsToDiffTime (5 * 60)
+    , cdbsGcInterval      = secondsToDiffTime 10
     , cdbsBlocksToAddSize = 10
       -- Fields without a default
     , cdbsTracer          = error "no default for cdbsTracer"
@@ -142,8 +153,6 @@ defaultSpecificArgs = ChainDbSpecificArgs{
     , cdbsBlockchainTime  = error "no default for cdbsBlockchainTime"
     , cdbsEncodeHeader    = error "no default for cdbsEncodeHeader"
     }
-  where
-    oneHour = secondsToDiffTime 60 * 60
 
 -- | Default arguments for use within IO
 --
@@ -220,6 +229,7 @@ fromChainDbArgs ChainDbArgs{..} = (
           cdbsTracer          = cdbTracer
         , cdbsRegistry        = cdbRegistry
         , cdbsGcDelay         = cdbGcDelay
+        , cdbsGcInterval      = cdbGcInterval
         , cdbsBlockchainTime  = cdbBlockchainTime
         , cdbsEncodeHeader    = cdbEncodeHeader
         , cdbsBlocksToAddSize = cdbBlocksToAddSize
@@ -278,5 +288,6 @@ toChainDbArgs ImmDB.ImmDbArgs{..}
     , cdbTraceLedger          = lgrTraceLedger
     , cdbRegistry             = immRegistry
     , cdbGcDelay              = cdbsGcDelay
+    , cdbGcInterval           = cdbsGcInterval
     , cdbBlocksToAddSize      = cdbsBlocksToAddSize
     }
