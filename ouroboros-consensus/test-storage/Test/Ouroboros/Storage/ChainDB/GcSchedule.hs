@@ -24,8 +24,9 @@ import           Test.Tasty.QuickCheck
 
 import           Test.Util.QuickCheck
 
--- TODO test whether the real implementation, i.e., 'scheduleGC' matches the
--- model in this file.
+{-------------------------------------------------------------------------------
+  Top-level tests
+-------------------------------------------------------------------------------}
 
 tests :: TestTree
 tests = testGroup "GcSchedule"
@@ -33,6 +34,76 @@ tests = testGroup "GcSchedule"
     , testProperty "overlap"            prop_overlap
     , testProperty "unnecessaryOverlap" prop_unnecessaryOverlap
     ]
+
+-- TODO test whether the real implementation, i.e., 'scheduleGC' matches the
+-- model in this file.
+
+{-------------------------------------------------------------------------------
+  Properties
+-------------------------------------------------------------------------------}
+
+-- | Property 1
+--
+-- 'queueLength' <= 'gcDelay' `div` 'gcInterval' + @slack@
+--
+-- Where:
+-- * @slack = 1@ when 'gcInterval' divides 'gcDelay'. In this case, the delay
+--   divides the interval nicely in different buckets. However, if we're not
+--   at the start of a bucket and part of it is in the past, we'll need one
+--   extra bucket to compensate, hence 1.
+-- * @slack = 2@ in the other cases: in addition to the 1 of the previous
+--   case, we must also account for one extra bucket because 'gcInterval'
+--   doesn't nicely divide 'gcDelay' into buckets.
+prop_queueLength :: TestSetup -> Property
+prop_queueLength TestSetup{..} =
+    testDelay >= testInterval ==>
+      conjoin
+        [ gcSummaryQueueLength `le` (gcDelay `div'` gcInterval) + slack
+        | GcStateSummary { gcSummaryQueueLength } <- testTrace
+        ]
+  where
+    GcParams{..} = testGcParams
+    slack
+      | testDelay `mod` testInterval == 0
+      = 1
+      | otherwise
+      = 2
+
+-- | Property 2:
+--
+-- 'overlap' < the number of blocks that could arrive 'gcDelay' +
+-- 'gcInterval'.
+prop_overlap :: TestSetup -> Property
+prop_overlap TestSetup{..} =
+    conjoin
+      [ gcSummaryOverlap `lt` blocksInInterval (gcDelay + gcInterval)
+      | GcStateSummary { gcSummaryOverlap } <- testTrace
+      ]
+  where
+    GcParams{..} = testGcParams
+
+-- | Property 3:
+--
+-- 'unnecessaryOverlap' < the number of blocks that could arrive in
+-- 'gcInterval'.
+prop_unnecessaryOverlap :: TestSetup -> Property
+prop_unnecessaryOverlap TestSetup{..} =
+    conjoin
+      [ gcSummaryUnnecessary `lt` blocksInInterval gcInterval
+      | GcStateSummary { gcSummaryUnnecessary } <- testTrace
+      ]
+  where
+    GcParams{..} = testGcParams
+
+-- TODO the unnecessaryOverlap should at some point go back to 0 after it has
+-- increased: test this property
+
+blocksInInterval :: DiffTime -> Int
+blocksInInterval interval = round (realToFrac interval :: Double)
+
+{-------------------------------------------------------------------------------
+  Block
+-------------------------------------------------------------------------------}
 
 newtype Block = Block Int
   deriving stock   (Show)
@@ -43,6 +114,10 @@ blockArrivalTime (Block n) = Time (secondsToDiffTime (fromIntegral n))
 
 blockSlotNo :: Block -> SlotNo
 blockSlotNo (Block n) = SlotNo (fromIntegral n)
+
+{-------------------------------------------------------------------------------
+  GcBlocks, GcQueue, GcState
+-------------------------------------------------------------------------------}
 
 -- | Queue of scheduled GCs, in reverse order
 newtype GcQueue = GcQueue { unGcQueue :: [(Time, SlotNo)] }
@@ -75,11 +150,11 @@ data GcState = GcState {
 emptyGcState :: GcState
 emptyGcState = GcState (GcQueue []) (GcBlocks [])
 
--- Property 1: length (gcDelay / gcInterval + 1)
+-- | The length of the queue
 queueLength :: GcState -> Int
 queueLength = length . unGcQueue . gcQueue
 
--- Property 2: size of overlap between ImmutableDB and VolatileDB
+-- | The overlap (number of blocks) between ImmutableDB and VolatileDB
 overlap :: GcState -> Int
 overlap = length . unGcBlocks . gcBlocks
 
@@ -90,64 +165,6 @@ unnecessaryOverlap
   -> Int
 unnecessaryOverlap now =
     length . filter ((<= now) . snd) . unGcBlocks . gcBlocks
-
--- | Property 1
---
--- TODO: English
-prop_queueLength :: TestSetup -> Property
-prop_queueLength TestSetup{..} =
-    conjoin
-      [ gcSummaryQueueLength `lt` (gcDelay `div'` gcInterval) + 1
-      | GcStateSummary { gcSummaryQueueLength } <- testTrace
-      ]
-  where
-    GcParams{..} = testGcParams
-
--- | Property 2:
---
--- TODO: English
-prop_overlap :: TestSetup -> Property
-prop_overlap TestSetup{..} =
-    conjoin
-      [ gcSummaryOverlap `lt` blocksInInterval (gcDelay + gcInterval)
-      | GcStateSummary { gcSummaryOverlap } <- testTrace
-      ]
-  where
-    GcParams{..} = testGcParams
-
--- | Property 3:
---
--- 'unnecessaryOverlap' < the number of blocks that could arrive in a
--- 'gcInterval'.
-prop_unnecessaryOverlap :: TestSetup -> Property
-prop_unnecessaryOverlap TestSetup{..} =
-    conjoin
-      [ gcSummaryUnnecessary `lt` blocksInInterval gcInterval
-      | GcStateSummary { gcSummaryUnnecessary } <- testTrace
-      ]
-  where
-    GcParams{..} = testGcParams
-
-blocksInInterval :: DiffTime -> Int
-blocksInInterval interval = round (realToFrac interval :: Double)
-
-data GcStateSummary = GcStateSummary {
-      gcSummaryNow         :: Time
-    , gcSummaryQueue       :: GcQueue
-    , gcSummaryQueueLength :: Int
-    , gcSummaryOverlap     :: Int
-    , gcSummaryUnnecessary :: Int
-    }
-  deriving (Show)
-
-computeGcStateSummary :: Time -> GcState -> GcStateSummary
-computeGcStateSummary now gcState = GcStateSummary {
-      gcSummaryNow         = now
-    , gcSummaryQueue       = gcQueue                gcState
-    , gcSummaryQueueLength = queueLength            gcState
-    , gcSummaryOverlap     = overlap                gcState
-    , gcSummaryUnnecessary = unnecessaryOverlap now gcState
-    }
 
 step
   :: GcParams
@@ -191,13 +208,40 @@ step gcParams block = runGc . schedule
           queue
             -> (scheduledTime, slot):queue
 
+{-------------------------------------------------------------------------------
+  GcStateSummary
+-------------------------------------------------------------------------------}
+
+data GcStateSummary = GcStateSummary {
+      gcSummaryNow         :: Time
+    , gcSummaryQueue       :: GcQueue
+    , gcSummaryQueueLength :: Int
+    , gcSummaryOverlap     :: Int
+    , gcSummaryUnnecessary :: Int
+    }
+  deriving (Show)
+
+computeGcStateSummary :: Time -> GcState -> GcStateSummary
+computeGcStateSummary now gcState = GcStateSummary {
+      gcSummaryNow         = now
+    , gcSummaryQueue       = gcQueue                gcState
+    , gcSummaryQueueLength = queueLength            gcState
+    , gcSummaryOverlap     = overlap                gcState
+    , gcSummaryUnnecessary = unnecessaryOverlap now gcState
+    }
+
+{-------------------------------------------------------------------------------
+  Trace
+-------------------------------------------------------------------------------}
+
 type Trace a = [a]
 
--- scanl f z [x1, x2, ...] == [z, z `f` x1, (z `f` x1) `f` x2, ...]
 computeTrace :: GcParams -> [Block] -> Trace (Time, GcState)
 computeTrace gcParams blocks =
     zip
       (map blockArrivalTime blocks)
+      -- Remember:
+      -- scanl f z [x1, x2, ...] == [z, z `f` x1, (z `f` x1) `f` x2, ...]
       (drop 1 (scanl (flip (step gcParams)) emptyGcState blocks))
 
 summarise :: GcParams -> Int -> Trace GcStateSummary
@@ -209,6 +253,10 @@ summarise gcParams numBlocks =
 
 example :: GcParams -> Trace GcStateSummary
 example gcParams = summarise gcParams 1000
+
+{-------------------------------------------------------------------------------
+  TestSetup
+-------------------------------------------------------------------------------}
 
 data TestSetup = TestSetup {
     -- | Number of blocks
