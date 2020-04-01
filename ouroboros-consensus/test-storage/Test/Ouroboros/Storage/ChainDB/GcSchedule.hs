@@ -270,4 +270,13 @@ instance Arbitrary TestSetup where
         | testInterval' <- shrink testInterval
         , testInterval' > 0
         ]
+
+        -- Shrink two values shrink /together/
+        -- Note: we don't compute all possible combinations, we shrink both
+      , [ mkTestSetup testNumBlocks testDelay' testInterval'
+        | testDelay    > 0
+        , testInterval > 1
+        , let testDelay'    = testDelay    - 1
+        , let testInterval' = testInterval - 1
+        ]
       ]
