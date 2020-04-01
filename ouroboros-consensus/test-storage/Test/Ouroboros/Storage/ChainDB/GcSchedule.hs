@@ -5,8 +5,8 @@
 {-# LANGUAGE RecordWildCards            #-}
 module Test.Ouroboros.Storage.ChainDB.GcSchedule (tests, example) where
 
+import           Data.Fixed (div')
 import           Data.List
-
 import           Data.Time.Clock
 
 import           Ouroboros.Network.Block (SlotNo (..))
@@ -29,7 +29,8 @@ import           Test.Util.QuickCheck
 
 tests :: TestTree
 tests = testGroup "GcSchedule"
-    [ testProperty "overlap"            prop_overlap
+    [ testProperty "queueLength"        prop_queueLength
+    , testProperty "overlap"            prop_overlap
     , testProperty "unnecessaryOverlap" prop_unnecessaryOverlap
     ]
 
@@ -90,13 +91,25 @@ unnecessaryOverlap
 unnecessaryOverlap now =
     length . filter ((<= now) . snd) . unGcBlocks . gcBlocks
 
+-- | Property 1
+--
+-- TODO: English
+prop_queueLength :: TestSetup -> Property
+prop_queueLength TestSetup{..} =
+    conjoin
+      [ gcSummaryQueueLength `lt` (gcDelay `div'` gcInterval) + 1
+      | GcStateSummary { gcSummaryQueueLength } <- testTrace
+      ]
+  where
+    GcParams{..} = testGcParams
+
 -- | Property 2:
 --
--- TODO: bound on 'overlap'?
+-- TODO: English
 prop_overlap :: TestSetup -> Property
 prop_overlap TestSetup{..} =
     conjoin
-      [ gcSummaryOverlap `lt` blocksInInterval gcInterval
+      [ gcSummaryOverlap `lt` blocksInInterval (gcDelay + gcInterval)
       | GcStateSummary { gcSummaryOverlap } <- testTrace
       ]
   where
