@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE RecordWildCards            #-}
 module Test.Ouroboros.Storage.ChainDB.GcSchedule (tests, example) where
 
 import           Data.List
@@ -28,7 +29,8 @@ import           Test.Util.QuickCheck
 
 tests :: TestTree
 tests = testGroup "GcSchedule"
-    [ testProperty "unnecessary overlap" prop_unnecessaryOverlap
+    [ testProperty "overlap"            prop_overlap
+    , testProperty "unnecessaryOverlap" prop_unnecessaryOverlap
     ]
 
 newtype Block = Block Int
@@ -88,20 +90,30 @@ unnecessaryOverlap
 unnecessaryOverlap now =
     length . filter ((<= now) . snd) . unGcBlocks . gcBlocks
 
+-- | Property 2:
+--
+-- TODO: bound on 'overlap'?
+prop_overlap :: TestSetup -> Property
+prop_overlap TestSetup{..} =
+    conjoin
+      [ gcSummaryOverlap `lt` blocksInInterval gcInterval
+      | GcStateSummary { gcSummaryOverlap } <- testTrace
+      ]
+  where
+    GcParams{..} = testGcParams
+
 -- | Property 3:
 --
 -- 'unnecessaryOverlap' < the number of blocks that could arrive in a
 -- 'gcInterval'.
 prop_unnecessaryOverlap :: TestSetup -> Property
-prop_unnecessaryOverlap (TestSetup gcParams@GcParams { gcInterval } nbBlocks) =
-    counterexample (show trace) $ conjoin
+prop_unnecessaryOverlap TestSetup{..} =
+    conjoin
       [ gcSummaryUnnecessary `lt` blocksInInterval gcInterval
-      | GcStateSummary { gcSummaryUnnecessary } <- trace
+      | GcStateSummary { gcSummaryUnnecessary } <- testTrace
       ]
   where
-    blocks = map Block [1..fromIntegral nbBlocks]
-    trace =
-      map (uncurry computeGcStateSummary) $ computeTrace gcParams blocks
+    GcParams{..} = testGcParams
 
 blocksInInterval :: DiffTime -> Int
 blocksInInterval interval = round (realToFrac interval :: Double)
@@ -175,23 +187,74 @@ computeTrace gcParams blocks =
       (map blockArrivalTime blocks)
       (drop 1 (scanl (flip (step gcParams)) emptyGcState blocks))
 
-example :: GcParams -> Trace GcStateSummary
-example gcParams =
-    map (uncurry computeGcStateSummary) $
-    computeTrace gcParams blocks
+summarise :: GcParams -> Int -> Trace GcStateSummary
+summarise gcParams numBlocks =
+   map (uncurry computeGcStateSummary) $
+     computeTrace gcParams blocks
   where
-    blocks = map Block [1..1000]
+    blocks = map Block [1..numBlocks]
 
-data TestSetup = TestSetup GcParams Word
+example :: GcParams -> Trace GcStateSummary
+example gcParams = summarise gcParams 1000
+
+data TestSetup = TestSetup {
+    -- | Number of blocks
+    --
+    -- This determines the length of the trace. Shrinking this value means
+    -- we find the smallest trace that yields the error
+    testNumBlocks :: Int
+
+    -- | GC delay in seconds
+    --
+    -- We keep this as a separate value /in seconds/ so that (1) it is easily
+    -- shrinkable and (2) we can meaningfully use 'blocksInInterval'
+  , testDelay     :: Integer
+
+    -- | GC interval in seconds
+    --
+    -- See 'testDelay'
+  , testInterval  :: Integer
+
+    -- Derived
+  , testGcParams  :: GcParams
+  , testTrace     :: Trace GcStateSummary
+  }
   deriving (Show)
 
-instance Arbitrary TestSetup where
-  arbitrary = do
-    gcDelay    <- secondsToDiffTime <$> choose (0, 100)
-    gcInterval <- secondsToDiffTime <$> choose (1, 120)
-    let gcParams = GcParams { gcDelay, gcInterval }
-    nbBlocks <- fromIntegral . (* 10) <$> getSize
-    return $ TestSetup gcParams nbBlocks
+mkTestSetup :: Int -> Integer -> Integer -> TestSetup
+mkTestSetup numBlocks delay interval = TestSetup {
+      testNumBlocks = numBlocks
+    , testDelay     = delay
+    , testInterval  = interval
+      -- Derived values
+    , testGcParams  = gcParams
+    , testTrace     = summarise gcParams numBlocks
+    }
+  where
+    gcParams :: GcParams
+    gcParams = GcParams {
+          gcDelay    = secondsToDiffTime delay
+        , gcInterval = secondsToDiffTime interval
+        }
 
-  shrink (TestSetup gcParams nbBlocks) =
-    [TestSetup gcParams nbBlocks' | nbBlocks' <- shrink nbBlocks]
+instance Arbitrary TestSetup where
+  arbitrary =
+      mkTestSetup
+        <$> ((* 10) <$> getSize) -- Number of blocks
+        <*> choose (0, 100)      -- Delay
+        <*> choose (1, 120)      -- Interval
+
+  shrink TestSetup{..} = concat [
+        [ mkTestSetup testNumBlocks' testDelay testInterval
+        | testNumBlocks' <- shrink testNumBlocks
+        ]
+
+      , [ mkTestSetup testNumBlocks testDelay' testInterval
+        | testDelay' <- shrink testDelay
+        ]
+
+      , [ mkTestSetup testNumBlocks testDelay testInterval'
+        | testInterval' <- shrink testInterval
+        , testInterval' > 0
+        ]
+      ]

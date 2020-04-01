@@ -38,7 +38,6 @@ import           Control.Monad (when)
 import           Control.Tracer (Tracer)
 import           Data.ByteString.Lazy (ByteString)
 import           Data.Proxy (Proxy (..))
-import           Data.Time.Clock (secondsToDiffTime)
 
 import           Ouroboros.Network.Diffusion
 import           Ouroboros.Network.Magic
