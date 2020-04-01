@@ -144,8 +144,8 @@ data ChainDbSpecificArgs m blk = ChainDbSpecificArgs {
 -- * 'cdbsEncodeHeader'
 defaultSpecificArgs :: ChainDbSpecificArgs m blk
 defaultSpecificArgs = ChainDbSpecificArgs{
-      cdbsGcDelay         = secondsToDiffTime (5 * 60)
-    , cdbsGcInterval      = secondsToDiffTime 10
+      cdbsGcDelay         = secondsToDiffTime 60
+    , cdbsGcInterval      = secondsToDiffTime 10 -- TODO
     , cdbsBlocksToAddSize = 10
       -- Fields without a default
     , cdbsTracer          = error "no default for cdbsTracer"

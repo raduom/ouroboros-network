@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE NamedFieldPuns      #-}
 {-# LANGUAGE NumericUnderscores  #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -22,8 +23,10 @@ module Ouroboros.Consensus.Storage.ChainDB.Impl.Background
   , garbageCollect
     -- * Scheduling garbage collections
   , GcSchedule
+  , GcParams (..)
   , newGcSchedule
   , scheduleGC
+  , computeTimeForGC
   , gcScheduleRunner
     -- * Adding blocks to the ChainDB
   , addBlockRunner
@@ -33,12 +36,12 @@ module Ouroboros.Consensus.Storage.ChainDB.Impl.Background
   ) where
 
 import           Control.Exception (assert)
-import           Control.Monad (forM_, forever, unless, void, when)
+import           Control.Monad (forM_, forever, unless, void)
 import           Control.Tracer
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (fromMaybe)
-import           Data.Time.Clock (diffTimeToPicoseconds)
+import           Data.Time.Clock
 import           Data.Void (Void)
 import           Data.Word
 import           GHC.Stack (HasCallStack)
@@ -267,8 +270,10 @@ copyAndSnapshotRunner cdb@CDB{..} gcSchedule =
         scheduleGC
           (contramap TraceGCEvent cdbTracer)
           slotNo
-          cdbGcDelay
-          cdbGcInterval
+          GcParams {
+              gcDelay    = cdbGcDelay
+            , gcInterval = cdbGcInterval
+            }
           gcSchedule
 
 -- | Write a snapshot of the LedgerDB to disk and remove old snapshots
@@ -333,11 +338,12 @@ garbageCollect CDB{..} slotNo = do
 --
 -- At 8:43:22, we schedule a GC for slot 10:
 --
--- > [(8:48:22, SlotNo 10)]
+-- > [(8:48:30, SlotNo 10)]
 --
--- Next, at 8:43:24, we schedule a GC for slot 11:
+-- The scheduled time is rounded up to the next interval. Next, at 8:43:24, we
+-- schedule a GC for slot 11:
 --
--- > [(8:48:24, SlotNo 11)]
+-- > [(8:48:30, SlotNo 11)]
 --
 -- Note that the existing entry is replaced with the new one, as they map to
 -- the same @gcInterval@. Instead of two GCs 2 seconds apart, we will only
@@ -345,15 +351,29 @@ garbageCollect CDB{..} slotNo = do
 --
 -- Next, at 8:44:02, we schedule a GC for slot 12:
 --
--- > [(8:48:24, SlotNo 11), (8:49:02, SlotNo 12)]
+-- > [(8:48:30, SlotNo 11), (8:49:10, SlotNo 12)]
 --
 -- Now, a new entry was appended to the queue, as it doesn't map to the same
 -- @gcInterval@ as the last one.
+--
+-- In other words, everything scheduled in the first 10s will be done after
+-- 20s. The bounds are the open-closed interval:
+--
+-- > (now + gcDelay, now + gcDelay + gcInterval]
 --
 -- Whether we're syncing at high speed or downloading blocks as they are
 -- produced, the length of the queue will be at most @gcDelay / gcInterval@,
 -- e.g., 5min / 10s = 30 entries.
 data GcSchedule m = GcSchedule (StrictTQueue m (Time, SlotNo))
+
+data GcParams = GcParams {
+      gcDelay    :: !DiffTime
+      -- ^ How long to wait until performing the GC. See 'cdbsGcDelay'.
+    , gcInterval :: !DiffTime
+      -- ^ The GC interval: the minimum time between two GCs. See
+      -- 'cdbsGcInterval'.
+    }
+  deriving (Show)
 
 newGcSchedule :: IOLike m => m (GcSchedule m)
 newGcSchedule = GcSchedule <$> atomically newTQueue
@@ -362,27 +382,49 @@ scheduleGC
   :: forall m blk. IOLike m
   => Tracer m (TraceGCEvent blk)
   -> SlotNo    -- ^ The slot to use for garbage collection
-  -> DiffTime  -- ^ How long to wait until performing the GC
-  -> DiffTime  -- ^ The GC interval: the minimum time between two GCs
+  -> GcParams
   -> GcSchedule m
   -> m ()
-scheduleGC tracer slotNo gcDelay gcInterval (GcSchedule queue) = do
-    timeScheduledForGC <- addTime gcDelay <$> getMonotonicTime
+scheduleGC tracer slotNo gcParams (GcSchedule queue) = do
+    timeScheduledForGC <- computeTimeForGC gcParams <$> getMonotonicTime
     atomically $ do
       mbLastScheduled <- peekTailQueue queue
       case mbLastScheduled of
         Just (lastTimeScheduledForGC, _lastSlotNo)
-          | lastTimeScheduledForGC `sameGcInterval` timeScheduledForGC
+          | timeScheduledForGC == lastTimeScheduledForGC
           -> modifyTailTQueue queue (const (timeScheduledForGC, slotNo))
         _ -> writeTQueue queue (timeScheduledForGC, slotNo)
-    traceWith tracer $ ScheduledGC slotNo gcDelay
-  where
-    toPico = diffTimeToPicoseconds
+    traceWith tracer $ ScheduledGC slotNo timeScheduledForGC
 
-    sameGcInterval :: Time -> Time -> Bool
-    sameGcInterval (Time time1) (Time time2) =
-         toPico time1 `div` toPico gcInterval
-      == toPico time2 `div` toPico gcInterval
+computeTimeForGC
+  :: GcParams
+  -> Time      -- ^ Now
+  -> Time      -- ^ The time at which to perform the GC
+computeTimeForGC GcParams { gcDelay, gcInterval } (Time now) =
+    Time $ picosecondsToDiffTime $
+      -- We're rounding up to the nearest interval, because rounding down
+      -- would mean GC'ing too early.
+      roundUpToInterval
+        (diffTimeToPicoseconds gcInterval)
+        (diffTimeToPicoseconds (now + gcDelay))
+
+-- | Round to an interval
+--
+-- PRECONDITION: interval > 0
+--
+-- >    [roundUpToInterval 5 n | n <- [1..15]]
+-- > == [5,5,5,5,5, 10,10,10,10,10, 15,15,15,15,15]
+--
+-- >    roundUpToInterval 5 0
+-- > == 0
+roundUpToInterval :: (Integral a, Integral b) => b -> a -> a
+roundUpToInterval interval x
+    | m == 0
+    = d * fromIntegral interval
+    | otherwise
+    = (d + 1) * fromIntegral interval
+  where
+    (d, m) = x `divMod` fromIntegral interval
 
 gcScheduleRunner
   :: forall m. IOLike m

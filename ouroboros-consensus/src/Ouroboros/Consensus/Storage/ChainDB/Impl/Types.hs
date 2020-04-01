@@ -701,9 +701,9 @@ data TraceCopyToImmDBEvent blk
   deriving (Generic, Eq, Show)
 
 data TraceGCEvent blk
-  = ScheduledGC SlotNo DiffTime
+  = ScheduledGC SlotNo Time
     -- ^ A garbage collection for the given 'SlotNo' was scheduled to happen
-    -- after the given delay.
+    -- at the given time.
   | PerformedGC SlotNo
     -- ^ A garbage collection for the given 'SlotNo' was performed.
   deriving (Generic, Eq, Show)
