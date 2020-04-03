@@ -55,7 +55,7 @@ forkJob :: forall m a.
 forkJob JobPool{jobsVar, completionQueue} (Job action handler) =
     mask $ \restore -> do
       jobAsync <- async $ do
-        res <- handleJust notAsyncExceptions (return . handler) $
+        !res <- handleJust notAsyncExceptions (return . handler) $
                  restore action
         tid <- myThreadId
         atomically $ do
