@@ -60,6 +60,7 @@ library
                        Ouroboros.Consensus.MiniProtocol.LocalStateQuery.Server
                        Ouroboros.Consensus.MiniProtocol.LocalTxSubmission.Server
                        Ouroboros.Consensus.Node
+                       Ouroboros.Consensus.Node.DbLock
                        Ouroboros.Consensus.Node.DbMarker
                        Ouroboros.Consensus.Node.ErrorPolicy
                        Ouroboros.Consensus.Node.Exit

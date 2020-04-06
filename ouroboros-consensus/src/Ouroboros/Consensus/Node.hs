@@ -54,6 +54,7 @@ import           Ouroboros.Consensus.Config
 import           Ouroboros.Consensus.Ledger.Extended (ExtLedgerState (..))
 import           Ouroboros.Consensus.MiniProtocol.ChainSync.Client
                      (ClockSkew (..))
+import           Ouroboros.Consensus.Node.DbLock
 import           Ouroboros.Consensus.Node.DbMarker
 import           Ouroboros.Consensus.Node.ErrorPolicy
 import           Ouroboros.Consensus.Node.LedgerDerivedInfo
@@ -119,13 +120,12 @@ run
 run tracers protocolTracers chainDbTracer diffusionTracers diffusionArguments
     networkMagic dbPath pInfo isProducer customiseChainDbArgs
     customiseNodeArgs onNodeKernel = do
-    either throwM return =<< checkDbMarker
-      hasFS
-      mountPoint
-      (nodeProtocolMagicId (Proxy @blk) cfg)
     withRegistry $ \registry -> do
-
-      lockDbMarkerFile registry dbPath
+      lockDB registry hasFS dbPath
+      either throwM return =<< checkDbMarker
+        hasFS
+        mountPoint
+        (nodeProtocolMagicId (Proxy @blk) cfg)
       btime <- realBlockchainTime
         registry
         (blockchainTimeTracer tracers)

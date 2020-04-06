@@ -14,6 +14,7 @@ import           Control.Monad.IOSim (runSimOrThrow)
 
 import           Cardano.Crypto (ProtocolMagicId (..))
 
+import           Ouroboros.Consensus.Node.DbLock
 import           Ouroboros.Consensus.Node.DbMarker
 import           Ouroboros.Consensus.Util.ResourceRegistry (withRegistry)
 
@@ -38,7 +39,7 @@ tests = testGroup "Node"
       , testCase "corrupt"      test_checkProtocolMagicId_corrupt
       , testCase "empty"        test_checkProtocolMagicId_empty
       ]
-    , testCase "lockDbMarkerFile" test_lockDbMarkerFile
+    , testCase "lockDb"         test_lockDb
     ]
 
 {-------------------------------------------------------------------------------
@@ -132,29 +133,26 @@ test_checkProtocolMagicId_empty = res @?= Left e
     e = CorruptDbMarker fullPath
 
 {-------------------------------------------------------------------------------
-  lockDbMarkerFile
+  lockDb
 -------------------------------------------------------------------------------}
 
-test_lockDbMarkerFile :: Assertion
-test_lockDbMarkerFile = withTempDir $ \dbPath -> do
-    let mount = MountPoint dbPath
-    -- Create the DB marker file
-    checkDbMarker (ioHasFS mount) mountPoint expectedProtocolMagicId >>=
-      (@?= Right ())
+test_lockDb :: Assertion
+test_lockDb = withTempDir $ \dbPath -> do
+    let hasFS = ioHasFS $ MountPoint dbPath
 
     -- Lock it once
     withRegistry $ \registry -> do
-      tryL (lockDbMarkerFile registry dbPath) >>=
+      tryL (lockDB registry hasFS dbPath) >>=
         (@?= (Right ()))
 
       -- Try to lock it again. This should fail.
-      tryL (lockDbMarkerFile registry dbPath) >>=
-        (@?= (Left (DbLocked (dbPath </> T.unpack dbMarkerFile))))
+      tryL (lockDB registry hasFS dbPath) >>=
+        (@?= (Left (DbLocked (dbPath </> T.unpack dbLockFile))))
 
     -- Unlock it now by closing the 'ResourceRegistry'.
     -- We must be able to lock it again now.
     withRegistry $ \registry ->
-      tryL (lockDbMarkerFile registry dbPath) >>=
+      tryL (lockDB registry hasFS dbPath) >>=
         (@?= (Right ()))
     -- And finally unlock it.
   where
@@ -162,5 +160,5 @@ test_lockDbMarkerFile = withTempDir $ \dbPath -> do
       sysTmpDir <- getTemporaryDirectory
       withTempDirectory sysTmpDir "ouroboros-network-test" k
 
-    tryL :: IO a -> IO (Either DbMarkerError a)
+    tryL :: IO a -> IO (Either DbLocked a)
     tryL = try
