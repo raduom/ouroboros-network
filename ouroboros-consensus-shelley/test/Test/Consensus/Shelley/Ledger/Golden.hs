@@ -22,7 +22,7 @@ import           Ouroboros.Consensus.Ledger.Abstract
 import           Ouroboros.Consensus.Mempool.API
 import           Ouroboros.Consensus.Protocol.Abstract
 
-import qualified Cardano.Ledger.Shelley.Crypto as SL
+import qualified Shelley.Spec.Ledger.Crypto as SL
 import qualified Shelley.Spec.Ledger.BaseTypes as SL
 import qualified Shelley.Spec.Ledger.BlockChain as SL
 import qualified Shelley.Spec.Ledger.Keys as SL

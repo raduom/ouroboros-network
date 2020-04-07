@@ -47,7 +47,7 @@ import           Ouroboros.Consensus.Node.State
 import           Ouroboros.Consensus.Protocol.Abstract (SecurityParam (..))
 import           Ouroboros.Consensus.Storage.ImmutableDB (simpleChunkInfo)
 
-import           Cardano.Ledger.Shelley.Crypto (HASH)
+import           Shelley.Spec.Ledger.Crypto (HASH)
 import qualified Shelley.Spec.Ledger.BaseTypes as SL
 import qualified Shelley.Spec.Ledger.BlockChain as SL
 import qualified Shelley.Spec.Ledger.Coin as SL
@@ -64,6 +64,8 @@ import qualified Ouroboros.Consensus.Shelley.Ledger.History as History
 import           Ouroboros.Consensus.Shelley.Protocol
 import           Ouroboros.Consensus.Shelley.Protocol.Crypto (KES)
 import qualified Ouroboros.Consensus.Shelley.Protocol.State as State
+
+import           Debug.Trace
 
 {-------------------------------------------------------------------------------
   ProtocolInfo
@@ -240,7 +242,7 @@ protocolInfoShelley genesis protVer mbCredentials =
       }
 
     genesisUtxO :: SL.UTxO c
-    genesisUtxO = SL.UTxO $ Map.fromList
+    genesisUtxO = traceShowId $ SL.UTxO $ Map.fromList
         [ (magicTxIn, txOut)
         | (addr, amount) <- Map.toList (sgInitialFunds genesis)
         , let txOut = SL.TxOut addr amount
