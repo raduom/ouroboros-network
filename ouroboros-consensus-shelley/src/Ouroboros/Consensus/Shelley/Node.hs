@@ -65,8 +65,6 @@ import           Ouroboros.Consensus.Shelley.Protocol
 import           Ouroboros.Consensus.Shelley.Protocol.Crypto (KES)
 import qualified Ouroboros.Consensus.Shelley.Protocol.State as State
 
-import           Debug.Trace
-
 {-------------------------------------------------------------------------------
   ProtocolInfo
 -------------------------------------------------------------------------------}
@@ -242,7 +240,7 @@ protocolInfoShelley genesis protVer mbCredentials =
       }
 
     genesisUtxO :: SL.UTxO c
-    genesisUtxO = traceShowId $ SL.UTxO $ Map.fromList
+    genesisUtxO = SL.UTxO $ Map.fromList
         [ (magicTxIn, txOut)
         | (addr, amount) <- Map.toList (sgInitialFunds genesis)
         , let txOut = SL.TxOut addr amount
