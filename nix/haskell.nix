@@ -18,7 +18,8 @@ let
   # https://input-output-hk.github.io/haskell.nix/user-guide/projects/
   pkgSet = haskell-nix.cabalProject {
     src = haskell-nix.haskellLib.cleanGit { src = ../.; };
-    ghc = buildPackages.haskell-nix.compiler.${compiler};
+#    ghc = buildPackages.haskell-nix.compiler.${compiler};
+    ghc = buildPackages.haskell-nix.compiler.ghc883;
     modules = [
 
       # Allow reinstallation of Win32
