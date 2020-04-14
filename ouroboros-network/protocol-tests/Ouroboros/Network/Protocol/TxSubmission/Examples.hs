@@ -55,7 +55,7 @@ data TraceEventClient txid tx =
 --
 txSubmissionClient
   :: forall txid tx m.
-     (Ord txid, Show txid, Monad m)
+     (Ord txid, Show txid, Monad m, MonadFail m)
   => Tracer m (TraceEventClient txid tx)
   -> (tx -> txid)
   -> (tx -> TxSizeInBytes)

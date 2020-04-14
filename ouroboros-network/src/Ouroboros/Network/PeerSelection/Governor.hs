@@ -706,7 +706,7 @@ invariantPeerSelectionState PeerSelectionState{..} =
 -- |
 --
 peerSelectionGovernor :: (MonadAsync m, MonadMask m, MonadTime m, MonadTimer m,
-                          Alternative (STM m), Ord peeraddr)
+                          MonadFail m, Alternative (STM m), Ord peeraddr)
                       => Tracer m (TracePeerSelection peeraddr)
                       -> Tracer m (DebugPeerSelection peeraddr peerconn)
                       -> PeerSelectionActions peeraddr peerconn m
@@ -738,7 +738,7 @@ peerSelectionGovernor tracer debugTracer actions policy =
 --
 peerSelectionGovernorLoop :: forall m peeraddr peerconn.
                              (MonadAsync m, MonadMask m,
-                              MonadTime m, MonadTimer m,
+                              MonadTime m, MonadTimer m, MonadFail m,
                               Alternative (STM m), Ord peeraddr)
                           => Tracer m (TracePeerSelection peeraddr)
                           -> Tracer m (DebugPeerSelection peeraddr peerconn)

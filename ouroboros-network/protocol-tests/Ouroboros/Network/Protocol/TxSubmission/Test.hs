@@ -104,7 +104,7 @@ testServer tracer
       tracer txId
       maxUnacked maxTxIdsToRequest maxTxToRequest
 
-testClient :: Monad m
+testClient :: (Monad m, MonadFail m)
            => Tracer m (TraceEventClient TxId Tx)
            -> TxSubmissionTestParams
            -> TestClient m
@@ -186,7 +186,7 @@ prop_connect2 params@TxSubmissionTestParams{testTransactions}
 
 -- | Run a simple tx-submission client and server using connected channels.
 --
-prop_channel :: (MonadAsync m, MonadCatch m, MonadST m)
+prop_channel :: (MonadAsync m, MonadCatch m, MonadST m, MonadFail m)
              => m (Channel m ByteString, Channel m ByteString)
              -> TxSubmissionTestParams
              -> m Bool
