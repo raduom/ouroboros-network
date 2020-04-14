@@ -178,8 +178,6 @@ instance Monad (SimM s) where
     {-# INLINE (>>) #-}
     (>>) = (*>)
 
-    fail = MonadFail.fail
-
 instance MonadFail (SimM s) where
   fail msg = SimM $ \_ -> Throw (toException (IO.Error.userError msg))
 
@@ -207,8 +205,6 @@ instance Monad (STM s) where
 
     {-# INLINE (>>) #-}
     (>>) = (*>)
-
-    fail = MonadFail.fail
 
 instance MonadFail (STM s) where
   fail msg = STM $ \_ -> ThrowStm (toException (ErrorCall msg))
