@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
@@ -26,7 +27,7 @@ codecReqResp =
     encode (ClientAgency TokIdle) msg = show msg ++ "\n"
     encode (ServerAgency TokBusy) msg = show msg ++ "\n"
 
-    decode :: forall (pr :: PeerRole) st.
+    decode :: forall (pr :: PeerRole) (st :: ReqResp req resp).
               PeerHasAgency pr st
            -> m (DecodeStep String CodecFailure m (SomeMessage st))
     decode stok =

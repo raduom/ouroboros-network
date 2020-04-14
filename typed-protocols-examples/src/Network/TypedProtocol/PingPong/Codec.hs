@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
@@ -22,7 +23,7 @@ codecPingPong =
     encode (ClientAgency TokIdle) MsgDone = "done\n"
     encode (ServerAgency TokBusy) MsgPong = "pong\n"
 
-    decode :: PeerHasAgency pr st
+    decode :: PeerHasAgency pr (st :: PingPong)
            -> m (DecodeStep String CodecFailure m (SomeMessage st))
     decode stok =
       decodeTerminatedFrame '\n' $ \str trailing ->

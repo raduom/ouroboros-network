@@ -250,7 +250,7 @@ codecChainSyncId = Codec encode decode
          -> AnyMessage (ChainSync header tip)
   encode _ = AnyMessage
 
-  decode :: forall (pr :: PeerRole) st.
+  decode :: forall (pr :: PeerRole) (st :: ChainSync header tip).
             PeerHasAgency pr st
          -> m (DecodeStep (AnyMessage (ChainSync header tip))
                           CodecFailure m (SomeMessage st))
