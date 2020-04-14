@@ -245,7 +245,7 @@ mockPeerSelectionActions' tracer
       let Just script = Map.lookup addr gossipScripts
       mgossip <- stepScript script
       case mgossip of
-        Nothing                -> fail "no peers"
+        Nothing                -> error "no peers"
         Just (peeraddrs, time) -> do
           threadDelay (interpretGossipTime time)
           return peeraddrs
@@ -269,7 +269,7 @@ mockPeerSelectionActions' tracer
       snapshot <- atomically $ do
         status <- readTVar conn
         case status of
-          PeerHot  -> fail "activatePeerConnection of hot peer"
+          PeerHot  -> error "activatePeerConnection of hot peer"
           PeerWarm -> writeTVar conn PeerHot
           --TODO: check it's just a race condition and not just wrong:
           PeerCold -> return ()
@@ -1051,11 +1051,11 @@ _governorFindingPublicRoots targetNumberOfRootPeers domains =
                 readPeerSelectionTargets = return targets,
                 requestPeerGossip        = \_ -> return [],
                 requestPublicRootPeers   = \_ -> return (Set.empty, 0),
-                establishPeerConnection  = fail "establishPeerConnection",
-                monitorPeerConnection    = fail "monitorPeerConnection",
-                activatePeerConnection   = fail "activatePeerConnection",
-                deactivatePeerConnection = fail "deactivatePeerConnection",
-                closePeerConnection      = fail "closePeerConnection"
+                establishPeerConnection  = error "establishPeerConnection",
+                monitorPeerConnection    = error "monitorPeerConnection",
+                activatePeerConnection   = error "activatePeerConnection",
+                deactivatePeerConnection = error "deactivatePeerConnection",
+                closePeerConnection      = error "closePeerConnection"
               }
 
     targets :: PeerSelectionTargets
