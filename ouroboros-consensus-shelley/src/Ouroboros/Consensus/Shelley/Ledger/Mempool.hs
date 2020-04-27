@@ -7,6 +7,7 @@
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -70,11 +71,11 @@ instance TPraosCrypto c => ApplyTx (ShelleyBlock c) where
 mkShelleyTx :: Crypto c => SL.Tx c -> GenTx (ShelleyBlock c)
 mkShelleyTx tx = ShelleyTx (SL.txid (SL._body tx)) tx
 
+deriving via UseIsNormalForm (TxId (GenTx (ShelleyBlock c))) instance (Crypto c) => NoUnexpectedThunks (TxId (GenTx (ShelleyBlock c)))
 instance Crypto c => HasTxId (GenTx (ShelleyBlock c)) where
 
   newtype TxId (GenTx (ShelleyBlock c)) = ShelleyTxId (ShelleyTxId c)
     deriving newtype (Eq, Ord, FromCBOR, ToCBOR)
-    deriving (NoUnexpectedThunks) via UseIsNormalForm (TxId (GenTx (ShelleyBlock c)))
 
   txId (ShelleyTx i _) = ShelleyTxId i
 

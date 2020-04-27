@@ -116,13 +116,14 @@ instance StandardHash m => StandardHash (DualBlock m a)
   Header
 -------------------------------------------------------------------------------}
 
+deriving via AllowThunk (Header (DualBlock m a)) instance (Bridge m a) => NoUnexpectedThunks (Header (DualBlock m a))
 instance GetHeader m => GetHeader (DualBlock m a) where
   newtype Header (DualBlock m a) = DualHeader { dualHeaderMain :: Header m }
-    deriving NoUnexpectedThunks via AllowThunk (Header (DualBlock m a))
 
   getHeader = DualHeader . getHeader . dualBlockMain
 
 type DualHeader m a = Header (DualBlock m a)
+
 
 deriving instance Show (Header m) => Show (DualHeader m a)
 
@@ -331,13 +332,13 @@ instance Bridge m a => ApplyBlock (LedgerState (DualBlock m a)) (DualBlock m a) 
                  . (ledgerTipPoint :: LedgerState m -> Point m)
                  . dualLedgerStateMain
 
+deriving via AllowThunk (LedgerState (DualBlock m a)) instance (Bridge m a) => NoUnexpectedThunks (LedgerState (DualBlock m a))
 instance Bridge m a => UpdateLedger (DualBlock m a) where
   data LedgerState (DualBlock m a) = DualLedgerState {
         dualLedgerStateMain   :: LedgerState m
       , dualLedgerStateAux    :: LedgerState a
       , dualLedgerStateBridge :: BridgeLedger m a
       }
-    deriving NoUnexpectedThunks via AllowThunk (LedgerState (DualBlock m a))
 
 deriving instance ( Show (LedgerState m)
                   , Show (LedgerState a)
@@ -431,13 +432,13 @@ data DualGenTxErr m a = DualGenTxErr {
     , dualGenTxErrAux  :: ApplyTxErr a
     }
 
+deriving via AllowThunk (GenTx (DualBlock m a)) instance (Bridge m a) => NoUnexpectedThunks (GenTx (DualBlock m a))
 instance Bridge m a => ApplyTx (DualBlock m a) where
   data GenTx (DualBlock m a) = DualGenTx {
         dualGenTxMain   :: GenTx m
       , dualGenTxAux    :: GenTx a
       , dualGenTxBridge :: BridgeTx m a
       }
-    deriving NoUnexpectedThunks via AllowThunk (GenTx (DualBlock m a))
 
   type ApplyTxErr (DualBlock m a) = DualGenTxErr m a
 
@@ -487,12 +488,12 @@ instance Bridge m a => ApplyTx (DualBlock m a) where
                                     dualLedgerStateBridge
         }
 
+deriving via AllowThunk (TxId (GenTx (DualBlock m a))) instance (Bridge m a) => NoUnexpectedThunks (TxId (GenTx (DualBlock m a)))
 instance Bridge m a => HasTxId (GenTx (DualBlock m a)) where
   -- We don't need a pair of IDs, as long as we can unique ID the transaction
   newtype TxId (GenTx (DualBlock m a)) = DualGenTxId {
         dualGenTxIdMain :: GenTxId m
       }
-    deriving NoUnexpectedThunks via AllowThunk (TxId (GenTx (DualBlock m a)))
 
   txId = DualGenTxId . txId . dualGenTxMain
 
