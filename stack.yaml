@@ -1,4 +1,6 @@
-resolver: https://raw.githubusercontent.com/input-output-hk/cardano-prelude/91f357abae16099858193b999807323ca9a7c63c/snapshot.yaml
+resolver: lts-15.7
+
+allow-newer: true
 
 packages:
   - ./typed-protocols
@@ -33,10 +35,39 @@ flags:
     asserts: true
   ouroboros-consensus-cardano:
     asserts: true
+  cardano-prelude:
+    development: true
+  cardano-prelude-test:
+    development: true
+  cardano-binary:
+    development: true
+  cardano-binary-test:
+    development: true
+  goblins:
+    development: true
+  cardano-crypto-wrapper:
+    development: true
+  cardano-crypto-class:
+    development: true
+  small-steps:
+    development: true
+  cardano-ledger:
+    development: true
+  byron-spec-ledger:
+    development: true
+  shelley-spec-ledger:
+    development: true
+  byron-spec-chain:
+    development: true
+  cardano-ledger-test:
+    development: true
+  shelley-spec-ledger-test:
+    development: true
+
 
 extra-deps:
-  - git: https://github.com/input-output-hk/iohk-monitoring-framework
-    commit: cda172dac4428058ebcb832673f379c9f92d411e
+  - git: https://github.com/raduom/iohk-monitoring-framework
+    commit: b5c035ad4e226d634242ad5979fa677921181435
     subdirs:
       - contra-tracer
 
@@ -48,8 +79,8 @@ extra-deps:
       - cardano-crypto-class
       - slotting
 
-  - git: https://github.com/input-output-hk/cardano-ledger-specs
-    commit: 52afaab4fe99df8fff1e7666e665a923118cfc53
+  - git: https://github.com/raduom/cardano-ledger-specs
+    commit: 2cac85306d8b3e07006e9081f36ce7ebf2d9d0a3
     subdirs:
       - byron/chain/executable-spec
       - byron/ledger/executable-spec
@@ -73,7 +104,7 @@ extra-deps:
       - crypto/test
 
   - git: https://github.com/input-output-hk/cardano-prelude
-    commit: 91f357abae16099858193b999807323ca9a7c63c
+    commit: bd7eb69d27bfaee46d435bc1d2720520b1446426
     subdirs:
       - .
       - test
@@ -97,8 +128,17 @@ extra-deps:
   - network-3.1.0.1
   - quiet-0.2
 
+  # GHC-8.8.3
+  - path-0.6.1
+
   # Windows only
   - Win32-2.6.2.0
+
+  # Update to ghc-8.8.3
+  - base58-bytestring-0.1.0@sha256:a1da72ee89d5450bac1c792d9fcbe95ed7154ab7246f2172b57bd4fd9b5eab79,1913
+  - canonical-json-0.6.0.0@sha256:9021f435ccb884a3b4c55bcc6b50eb19d5fc3cc3f29d5fcbdef016f5bbae23a2,3488
+  - streaming-binary-0.3.0.1@sha256:f02a45297ca42a27cf9b3888711aafaf25e7cf7e640ac3133ebac856bb690083,1058
+  - th-utilities-0.2.4.0@sha256:ba19cd8441aa43dbaed40e9055bb5a7cbd7cf9e154f5253c6bf9293af8b1f96b,1869
 
 nix:
   shell-file: nix/stack-shell.nix

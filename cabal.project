@@ -130,7 +130,7 @@ package small-steps
   flags: +development
 
 package shelley-spec-ledger
-  tests: False
+  tests: True
   flags: +development
 
 package shelley-spec-ledger-test
@@ -147,14 +147,14 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-prelude
-  tag: 91f357abae16099858193b999807323ca9a7c63c
-  --sha256: 11ya7j7ga0axvjb583pkcyxdza1p5219857817mwga7djzm5gb0b
+  tag: bd7eb69d27bfaee46d435bc1d2720520b1446426
+  --sha256: 1cmxh1gk7lvgs6bfr8v6k2lpjxmk0qam58clvdvxkybrlbh186ps
 
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-prelude
-  tag: 91f357abae16099858193b999807323ca9a7c63c
-  --sha256: 11ya7j7ga0axvjb583pkcyxdza1p5219857817mwga7djzm5gb0b
+  tag: bd7eb69d27bfaee46d435bc1d2720520b1446426
+  --sha256: 1cmxh1gk7lvgs6bfr8v6k2lpjxmk0qam58clvdvxkybrlbh186ps
   subdir: test
 
 source-repository-package
